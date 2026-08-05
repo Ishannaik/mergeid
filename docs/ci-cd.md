@@ -20,12 +20,19 @@ maintenance LTS until 2027-04).
 
 ## 2. Security scanning
 
-| Tool                                     | Workflow                       | What it catches                            |
-| ---------------------------------------- | ------------------------------ | ------------------------------------------ |
-| GitHub secret scanning + push protection | repo setting (enabled in M1)   | Committed tokens, before they land         |
-| gitleaks                                 | `security.yml`                 | Secret patterns in history on PRs/pushes   |
-| CodeQL                                   | `codeql.yml` (weekly + on PRs) | JS/TS injection and taint classes          |
-| Dependabot                               | `dependabot.yml`               | Stale/vulnerable npm, actions, docker deps |
+Repository admins must enable **GitHub secret scanning** and **push protection** under
+Settings → Security → Advanced Security; the setting is managed in the repository admin
+view and is not independently verified by CI.
+
+Pull requests targeting `main` run the **Secret scan (gitleaks)** and **CodeQL Analyze**
+checks; both also run on pushes to `main`, and **CodeQL Analyze** runs on a weekly schedule.
+
+| Tool                                     | Workflow                                | What it catches                            |
+| ---------------------------------------- | --------------------------------------- | ------------------------------------------ |
+| GitHub secret scanning + push protection | repo setting (admin)                    | Committed tokens, before they land         |
+| gitleaks                                 | `security.yml` — Secret scan (gitleaks) | Secret patterns in history on PRs/pushes   |
+| CodeQL                                   | `codeql.yml` — CodeQL Analyze           | JS/TS injection and taint classes          |
+| Dependabot                               | `dependabot.yml`                        | Stale/vulnerable npm, actions, docker deps |
 
 ## 3. Testing strategy
 
