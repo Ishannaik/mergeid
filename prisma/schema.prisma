@@ -70,7 +70,9 @@ model GithubLink {
   user              User               @relation(fields: [discordUserId], references: [discordUserId], onDelete: Cascade)
   membershipResults MembershipResult[]
 
-  @@index([githubUserId])
+  // docs/database.md lists an index on github_user_id for duplicate-link
+  // detection. The @unique above already creates one, so declaring it again
+  // would pay for a second identical B-tree on every write.
   @@map("github_links")
 }
 
@@ -134,7 +136,14 @@ model RoleGrant {
   rule  VerificationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
   @@id([guildId, discordUserId, roleId])
-  @@index([guildId, discordUserId])
+  // docs/database.md lists (guild_id, discord_user_id) for reconciliation on
+  // join/verify. That is the leftmost prefix of the primary key above, which
+  // Postgres already serves from the PK's index.
+  //
+  // rule_id is the gap that matters instead: Postgres does not index foreign
+  // keys automatically, so deleting a rule sequentially scans this table for
+  // cascade targets.
+  @@index([ruleId])
   @@map("role_grants")
 }
 
@@ -166,5 +175,8 @@ model SyncRun {
   /// PROPOSED — see PR description. A retention sweep needs this; docs/database.md states no
   /// retention rule for sync_runs and the table grows unbounded.
   @@index([startedAt])
+  /// Unindexed foreign key: cascade deletes from verification_rules would
+  /// otherwise scan this table, which is the one growing without a bound.
+  @@index([ruleId])
   @@map("sync_runs")
 }

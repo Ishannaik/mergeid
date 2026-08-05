@@ -73,6 +73,9 @@ async function main(): Promise<void> {
 
   const started: RuntimeRole[] = [];
   let shuttingDown = false;
+  // Remembers the code the first shutdown reason asked for, so a signal
+  // arriving mid-cleanup cannot downgrade a fatal exit to a clean one.
+  let pendingExitCode = 0;
 
   // Holds the event loop open. A process signal listener does not keep Node
   // alive on its own, and the no-op roles own no handles yet — without this the
@@ -83,11 +86,15 @@ async function main(): Promise<void> {
 
   const shutdown = async (reason: string, exitCode: number): Promise<void> => {
     if (shuttingDown) {
-      // A second signal means the operator is out of patience.
-      logger.warn({ reason }, 'shutdown already in progress, forcing exit');
-      process.exit(exitCode);
+      // A second signal means the operator is out of patience. Keep whichever
+      // code reports failure: a crash already under cleanup must not be
+      // recorded as a clean stop just because SIGTERM landed on top of it.
+      const finalCode = pendingExitCode || exitCode;
+      logger.warn({ reason, exitCode: finalCode }, 'shutdown already in progress, forcing exit');
+      process.exit(finalCode);
     }
     shuttingDown = true;
+    pendingExitCode = exitCode;
     clearInterval(keepAlive);
     logger.info({ reason }, 'shutting down');
 

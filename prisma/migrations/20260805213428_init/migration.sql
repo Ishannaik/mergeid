@@ -117,9 +117,6 @@ CREATE UNIQUE INDEX "github_links_discord_user_id_key" ON "github_links"("discor
 CREATE UNIQUE INDEX "github_links_github_user_id_key" ON "github_links"("github_user_id");
 
 -- CreateIndex
-CREATE INDEX "github_links_github_user_id_idx" ON "github_links"("github_user_id");
-
--- CreateIndex
 CREATE INDEX "verification_rules_guild_id_enabled_idx" ON "verification_rules"("guild_id", "enabled");
 
 -- CreateIndex
@@ -129,13 +126,16 @@ CREATE INDEX "membership_results_rule_id_status_idx" ON "membership_results"("ru
 CREATE INDEX "membership_results_checked_at_idx" ON "membership_results"("checked_at");
 
 -- CreateIndex
-CREATE INDEX "role_grants_guild_id_discord_user_id_idx" ON "role_grants"("guild_id", "discord_user_id");
+CREATE INDEX "role_grants_rule_id_idx" ON "role_grants"("rule_id");
 
 -- CreateIndex
 CREATE INDEX "audit_events_guild_id_at_idx" ON "audit_events"("guild_id", "at" DESC);
 
 -- CreateIndex
 CREATE INDEX "sync_runs_started_at_idx" ON "sync_runs"("started_at");
+
+-- CreateIndex
+CREATE INDEX "sync_runs_rule_id_idx" ON "sync_runs"("rule_id");
 
 -- AddForeignKey
 ALTER TABLE "github_links" ADD CONSTRAINT "github_links_discord_user_id_fkey" FOREIGN KEY ("discord_user_id") REFERENCES "users"("discord_user_id") ON DELETE CASCADE ON UPDATE CASCADE;
