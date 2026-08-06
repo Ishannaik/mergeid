@@ -23,6 +23,10 @@ pnpm install
 cp .env.example .env   # on Windows: copy .env.example .env — then fill in the values
 ```
 
+On macOS/Linux, `make install`, `make check`, and `make format` are shortcuts
+for the pnpm commands below. `make db` documents the compose targets for issue
+#4. On Windows, use the pnpm commands directly.
+
 ### Scripts
 
 | Command             | Description                       |
