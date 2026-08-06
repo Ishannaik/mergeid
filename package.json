@@ -12,6 +12,7 @@
   "scripts": {
     "build": "prisma generate && tsc",
     "start": "node dist/index.js",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
     "typecheck": "prisma generate && tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",

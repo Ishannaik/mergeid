@@ -24,14 +24,15 @@ cp .env.example .env   # on Windows: copy .env.example .env — then fill in the
 ```
 
 On macOS/Linux, `make install`, `make check`, and `make format` are shortcuts
-for the pnpm commands below. `make db` documents the compose targets for issue
-#4. On Windows, use the pnpm commands directly.
+for the pnpm commands below. `make db` documents the compose targets for issue #4.
+On Windows, use the pnpm commands directly.
 
 ### Scripts
 
 | Command             | Description                       |
 | ------------------- | --------------------------------- |
 | `pnpm build`        | Compile TypeScript to `dist/`     |
+| `pnpm check`        | Run lint, typecheck, and tests    |
 | `pnpm typecheck`    | Type-check without emitting files |
 | `pnpm lint`         | Run the linter                    |
 | `pnpm format`       | Format the codebase               |
