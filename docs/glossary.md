@@ -7,10 +7,10 @@ uses them.
   review and debugging.
 - **Bot token**: secret credential that identifies the bot to Discord; it must
   never be committed or shared.
-- **DM**: direct message between the bot and one user, often used for ephemeral
-  results.
-- **Ephemeral message**: a Discord message only the invoking user can see; it
-  disappears when they leave the interaction.
+- **DM**: direct message sent through a private channel between the bot and one
+  user, often used for asynchronous confirmations.
+- **Ephemeral message**: an interaction response only the invoking user can see;
+  it does not appear in the channel's message history.
 - **GitHub App**: GitHub integration with its own identity, permissions, and
   installable scope.
 - **Guild**: Discord's term for a server; the container for channels, roles,
