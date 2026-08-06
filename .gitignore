@@ -23,5 +23,6 @@ Thumbs.db
 *.sqlite
 
 # Editors and IDEs
-.vscode/
+.vscode/*
+!.vscode/extensions.json
 .idea/
