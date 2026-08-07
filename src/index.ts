@@ -25,10 +25,7 @@ async function main(): Promise<void> {
   const prisma = needsDataPlane ? createPrismaClient(config) : null;
   const redis = needsDataPlane ? createRedisClient(config, logger) : null;
   const oauthState = redis ? createRedisOAuthStateStore(redis) : null;
-  const links =
-    prisma && logger
-      ? createLinkService({ prisma, config, logger })
-      : null;
+  const links = prisma && logger ? createLinkService({ prisma, config, logger }) : null;
 
   const shutdownHandlers: Array<() => Promise<void>> = [];
 

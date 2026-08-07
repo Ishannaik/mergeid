@@ -54,9 +54,7 @@ const envSchema = z.object({
   TOKEN_ENCRYPTION_KEY_VERSION: z.string().min(1).default('1'),
 
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  LOG_LEVEL: z
-    .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
-    .default('info'),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 
   MERGEID_ROLES: z
     .string()

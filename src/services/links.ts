@@ -34,11 +34,7 @@ export interface LinkStatus {
   lastVerifiedAt?: Date | null;
 }
 
-export function createLinkService(deps: {
-  prisma: PrismaClient;
-  config: Config;
-  logger: Logger;
-}) {
+export function createLinkService(deps: { prisma: PrismaClient; config: Config; logger: Logger }) {
   const { prisma, config, logger } = deps;
 
   async function ensureUser(discordUserId: string): Promise<void> {

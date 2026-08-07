@@ -32,10 +32,7 @@ interface TokenErrorBody {
 }
 
 export async function exchangeCodeForToken(
-  config: Pick<
-    Config,
-    'GITHUB_CLIENT_ID' | 'GITHUB_CLIENT_SECRET' | 'OAUTH_REDIRECT_URI'
-  >,
+  config: Pick<Config, 'GITHUB_CLIENT_ID' | 'GITHUB_CLIENT_SECRET' | 'OAUTH_REDIRECT_URI'>,
   input: { code: string; codeVerifier: string },
   logger: Logger,
 ): Promise<GithubTokenExchangeResult> {
@@ -57,10 +54,7 @@ export async function exchangeCodeForToken(
   const body = (await response.json()) as TokenErrorBody;
 
   if (!response.ok || body.error || !body.access_token) {
-    logger.error(
-      { status: response.status, error: body.error },
-      'github token exchange failed',
-    );
+    logger.error({ status: response.status, error: body.error }, 'github token exchange failed');
     throw new AppError('GitHub token exchange failed', {
       code: 'github_token_exchange_failed',
       statusCode: 502,
