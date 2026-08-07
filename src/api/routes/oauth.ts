@@ -7,12 +7,13 @@ import type { FastifyInstance } from 'fastify';
 import { OAuthStateError, type OAuthStateStore } from '../../oauth/index.js';
 import { exchangeCodeForToken, fetchGithubProfile } from '../../github/index.js';
 import { AppError } from '../../lib/errors.js';
+import { escapeHtml } from '../../lib/html.js';
 import type { Config } from '../../config/index.js';
 import type { Logger } from '../../lib/logger.js';
 import type { LinkService } from '../../services/index.js';
 
 function htmlPage(title: string, body: string, statusHint?: string): string {
-  const hint = statusHint ? `<p class="hint">${statusHint}</p>` : '';
+  const hint = statusHint ? `<p class="hint">${escapeHtml(statusHint)}</p>` : '';
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -116,7 +117,7 @@ export function registerOAuthRoutes(
         .send(
           htmlPage(
             'Linked!',
-            `Your GitHub account <strong>@${profile.login}</strong> is now linked. You can close this tab and return to Discord.`,
+            `Your GitHub account <strong>@${escapeHtml(profile.login)}</strong> is now linked. You can close this tab and return to Discord.`,
             'Run /status in Discord to confirm.',
           ),
         );
@@ -126,7 +127,9 @@ export function registerOAuthRoutes(
         return reply
           .status(status)
           .type('text/html')
-          .send(htmlPage(status === 409 ? 'Already linked' : 'Link failed', err.message));
+          .send(
+            htmlPage(status === 409 ? 'Already linked' : 'Link failed', escapeHtml(err.message)),
+          );
       }
 
       logger.error({ err }, 'oauth callback failed');
