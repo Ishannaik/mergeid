@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: mergeid-postgres
+    environment:
+      POSTGRES_USER: mergeid
+      POSTGRES_PASSWORD: mergeid
+      POSTGRES_DB: mergeid
+    ports:
+      # Alternate host ports so local multi-project machines (often already
+      # running Postgres/Redis on 5432/6379) can still bring this stack up.
+      - '15432:5432'
+    volumes:
+      - mergeid_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mergeid -d mergeid']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: mergeid-redis
+    ports:
+      - '16379:6379'
+    volumes:
+      - mergeid_redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  mergeid_pgdata:
+  mergeid_redisdata:

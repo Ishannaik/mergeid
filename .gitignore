@@ -4,6 +4,9 @@ node_modules/
 # Build output
 dist/
 
+# Prisma 7 generated client (regenerated via `pnpm prisma generate`)
+src/generated/
+
 # Test coverage
 coverage/
 

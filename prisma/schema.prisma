@@ -1,0 +1,152 @@
+// Prisma schema for MergeID — source of truth is docs/database.md.
+// Prisma 7: URL lives in prisma.config.ts; generator uses prisma-client + explicit output.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum VerificationRuleKind {
+  ORG
+  REPO
+  TEAM
+}
+
+enum MembershipStatus {
+  PASS
+  FAIL
+  ERROR
+}
+
+enum SyncRunStatus {
+  OK
+  PARTIAL
+  FAILED
+}
+
+model Guild {
+  guildId   String   @id @map("guild_id")
+  enabled   Boolean  @default(true)
+  settings  Json     @default("{}")
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @map("updated_at") @db.Timestamptz(3)
+
+  verificationRules VerificationRule[]
+  auditEvents       AuditEvent[]
+  roleGrants        RoleGrant[]
+
+  @@map("guilds")
+}
+
+model User {
+  discordUserId String   @id @map("discord_user_id")
+  createdAt     DateTime @map("created_at") @db.Timestamptz(3)
+
+  githubLink GithubLink?
+
+  @@map("users")
+}
+
+model GithubLink {
+  id               String    @id @default(uuid())
+  discordUserId    String    @unique @map("discord_user_id")
+  githubUserId     String    @unique @map("github_user_id")
+  githubLogin      String    @map("github_login")
+  tokenEncrypted   String    @map("token_encrypted")
+  tokenKeyVersion  String    @map("token_key_version")
+  tokenScopes      String    @map("token_scopes")
+  linkedAt         DateTime  @map("linked_at") @db.Timestamptz(3)
+  lastVerifiedAt   DateTime? @map("last_verified_at") @db.Timestamptz(3)
+
+  user               User                @relation(fields: [discordUserId], references: [discordUserId], onDelete: Cascade)
+  membershipResults  MembershipResult[]
+
+  @@index([githubUserId])
+  @@map("github_links")
+}
+
+model VerificationRule {
+  id              String                @id @default(uuid())
+  guildId         String                @map("guild_id")
+  kind            VerificationRuleKind
+  org             String
+  repo            String?
+  teamSlug        String?               @map("team_slug")
+  roleId          String                @map("role_id")
+  recheckMinutes  Int                   @map("recheck_minutes")
+  requiredScopes  String                @map("required_scopes")
+  enabled         Boolean               @default(true)
+  createdBy       String                @map("created_by")
+  createdAt       DateTime              @map("created_at") @db.Timestamptz(3)
+
+  guild             Guild              @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  membershipResults MembershipResult[]
+  roleGrants        RoleGrant[]
+  syncRuns          SyncRun[]
+
+  @@index([guildId, enabled])
+  @@map("verification_rules")
+}
+
+model MembershipResult {
+  linkId    String           @map("link_id")
+  ruleId    String           @map("rule_id")
+  status    MembershipStatus
+  detail    String?
+  checkedAt DateTime         @map("checked_at") @db.Timestamptz(3)
+
+  link GithubLink       @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  rule VerificationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@id([linkId, ruleId])
+  @@index([ruleId, status])
+  @@map("membership_results")
+}
+
+model RoleGrant {
+  guildId       String   @map("guild_id")
+  discordUserId String   @map("discord_user_id")
+  roleId        String   @map("role_id")
+  ruleId        String   @map("rule_id")
+  grantedAt     DateTime @map("granted_at") @db.Timestamptz(3)
+
+  guild Guild            @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  rule  VerificationRule @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+
+  @@id([guildId, discordUserId, roleId])
+  @@index([guildId, discordUserId])
+  @@map("role_grants")
+}
+
+model AuditEvent {
+  id             String   @id @default(uuid())
+  guildId        String?  @map("guild_id")
+  actorDiscordId String?  @map("actor_discord_id")
+  action         String
+  subject        String?
+  meta           Json     @default("{}")
+  at             DateTime @db.Timestamptz(3)
+
+  guild Guild? @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@index([guildId, at(sort: Desc)])
+  @@map("audit_events")
+}
+
+model SyncRun {
+  id         String        @id @default(uuid())
+  ruleId     String        @map("rule_id")
+  startedAt  DateTime      @map("started_at") @db.Timestamptz(3)
+  finishedAt DateTime?     @map("finished_at") @db.Timestamptz(3)
+  stats      Json          @default("{}")
+  status     SyncRunStatus
+
+  rule VerificationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@map("sync_runs")
+}
