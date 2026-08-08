@@ -129,6 +129,7 @@ mergeid/
 | [`docs/configuration.md`](docs/configuration.md)   | Environment variables, Discord/GitHub app setup, invite URL       |
 | [`docs/roadmap.md`](docs/roadmap.md)               | Milestones, issue breakdown, labels                               |
 | [`docs/ci-cd.md`](docs/ci-cd.md)                   | Pipelines, release strategy, security scanning, branch protection |
+| [`docs/glossary.md`](docs/glossary.md)             | Plain-English Discord and GitHub terms                            |
 
 ## Roadmap
 
