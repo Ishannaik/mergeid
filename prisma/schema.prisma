@@ -1,0 +1,182 @@
+// MergeID — prisma/schema.prisma
+// Translated from docs/database.md. Prisma 7 conventions per issue #3.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// Prisma 7 no longer accepts `url` here — the connection string for Migrate
+// lives in prisma.config.ts, and the client receives a driver adapter.
+datasource db {
+  provider = "postgresql"
+}
+
+enum RuleKind {
+  ORG
+  REPO
+  TEAM
+}
+
+enum MembershipStatus {
+  PASS
+  FAIL
+  ERROR
+}
+
+enum SyncStatus {
+  OK
+  PARTIAL
+  FAILED
+}
+
+/// Discord snowflakes are stored as text everywhere: they exceed the
+/// JS safe-integer range and must never round-trip through a number.
+model Guild {
+  guildId   String   @id @map("guild_id")
+  enabled   Boolean  @default(true)
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  rules       VerificationRule[]
+  roleGrants  RoleGrant[]
+  auditEvents AuditEvent[]
+
+  @@map("guilds")
+}
+
+model User {
+  discordUserId String   @id @map("discord_user_id")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  githubLink GithubLink?
+  roleGrants RoleGrant[]
+
+  @@map("users")
+}
+
+model GithubLink {
+  id             String    @id @default(uuid()) @db.Uuid
+  discordUserId  String    @unique @map("discord_user_id")
+  githubUserId   String    @unique @map("github_user_id")
+  githubLogin    String    @map("github_login")
+  tokenEncrypted String    @map("token_encrypted")
+  tokenKeyVersion String   @map("token_key_version")
+  tokenScopes    String    @map("token_scopes")
+  linkedAt       DateTime  @default(now()) @map("linked_at") @db.Timestamptz(6)
+  lastVerifiedAt DateTime? @map("last_verified_at") @db.Timestamptz(6)
+
+  user              User               @relation(fields: [discordUserId], references: [discordUserId], onDelete: Cascade)
+  membershipResults MembershipResult[]
+
+  // docs/database.md lists an index on github_user_id for duplicate-link
+  // detection. The @unique above already creates one, so declaring it again
+  // would pay for a second identical B-tree on every write.
+  @@map("github_links")
+}
+
+model VerificationRule {
+  id             String   @id @default(uuid()) @db.Uuid
+  guildId        String   @map("guild_id")
+  kind           RuleKind
+  org            String
+  repo           String?
+  teamSlug       String?  @map("team_slug")
+  roleId         String   @map("role_id")
+  recheckMinutes Int      @default(60) @map("recheck_minutes")
+  requiredScopes String   @map("required_scopes")
+  enabled        Boolean  @default(true)
+  createdBy      String   @map("created_by")
+
+  guild             Guild              @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  membershipResults MembershipResult[]
+  roleGrants        RoleGrant[]
+  syncRuns          SyncRun[]
+
+  @@index([guildId, enabled])
+  @@map("verification_rules")
+}
+
+model MembershipResult {
+  linkId String           @map("link_id") @db.Uuid
+  ruleId String           @map("rule_id") @db.Uuid
+  status MembershipStatus
+  detail String?
+
+  checkedAt DateTime @default(now()) @map("checked_at") @db.Timestamptz(6)
+
+  /// PROPOSED — not in docs/database.md. See PR description.
+  /// Without these two columns the grace period promised in
+  /// docs/security-model.md cannot be implemented: there is nowhere to
+  /// record how long a check has been failing.
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+  firstFailedAt       DateTime? @map("first_failed_at") @db.Timestamptz(6)
+
+  link GithubLink       @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  rule VerificationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@id([linkId, ruleId])
+  @@index([ruleId, status])
+  /// PROPOSED — see PR description. The sync worker's hot query is "give me the stalest
+  /// results to re-check". Without this it table-scans every cycle.
+  @@index([checkedAt])
+  @@map("membership_results")
+}
+
+model RoleGrant {
+  guildId       String   @map("guild_id")
+  discordUserId String   @map("discord_user_id")
+  roleId        String   @map("role_id")
+  ruleId        String   @map("rule_id") @db.Uuid
+  grantedAt     DateTime @default(now()) @map("granted_at") @db.Timestamptz(6)
+
+  guild Guild            @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  user  User             @relation(fields: [discordUserId], references: [discordUserId], onDelete: Cascade)
+  rule  VerificationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, discordUserId, roleId])
+  // docs/database.md lists (guild_id, discord_user_id) for reconciliation on
+  // join/verify. That is the leftmost prefix of the primary key above, which
+  // Postgres already serves from the PK's index.
+  //
+  // rule_id is the gap that matters instead: Postgres does not index foreign
+  // keys automatically, so deleting a rule sequentially scans this table for
+  // cascade targets.
+  @@index([ruleId])
+  @@map("role_grants")
+}
+
+model AuditEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  guildId        String   @map("guild_id")
+  actorDiscordId String   @map("actor_discord_id")
+  action         String
+  subject        String
+  meta           Json     @default("{}")
+  at             DateTime @default(now()) @db.Timestamptz(6)
+
+  guild Guild @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@index([guildId, at(sort: Desc)])
+  @@map("audit_events")
+}
+
+model SyncRun {
+  id         String     @id @default(uuid()) @db.Uuid
+  ruleId     String     @map("rule_id") @db.Uuid
+  startedAt  DateTime   @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt DateTime?  @map("finished_at") @db.Timestamptz(6)
+  stats      Json       @default("{}")
+  status     SyncStatus
+
+  rule VerificationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  /// PROPOSED — see PR description. A retention sweep needs this; docs/database.md states no
+  /// retention rule for sync_runs and the table grows unbounded.
+  @@index([startedAt])
+  /// Unindexed foreign key: cascade deletes from verification_rules would
+  /// otherwise scan this table, which is the one growing without a bound.
+  @@index([ruleId])
+  @@map("sync_runs")
+}

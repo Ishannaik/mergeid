@@ -25,3 +25,6 @@ Thumbs.db
 # Editors and IDEs
 .vscode/
 .idea/
+
+# Generated Prisma client (rebuilt by `pnpm db:generate`)
+src/generated/
