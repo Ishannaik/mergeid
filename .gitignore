@@ -23,7 +23,8 @@ Thumbs.db
 *.sqlite
 
 # Editors and IDEs
-.vscode/
+.vscode/*
+!.vscode/extensions.json
 .idea/
 
 # Generated Prisma client (rebuilt by `pnpm db:generate`)
