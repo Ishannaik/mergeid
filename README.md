@@ -4,6 +4,8 @@
 
 [![CI](https://github.com/Ishannaik/mergeid/actions/workflows/ci.yml/badge.svg)](https://github.com/Ishannaik/mergeid/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Ishannaik/mergeid/pulls)
+[![Issues](https://img.shields.io/github/issues/Ishannaik/mergeid)](https://github.com/Ishannaik/mergeid/issues)
 
 **⚠️ Status: pre-alpha (design phase).** This repository currently contains the complete
 architecture, roadmap, and project scaffolding. Implementation starts with
