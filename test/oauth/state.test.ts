@@ -21,6 +21,8 @@ describe('OAuth state store', () => {
     expect(first).toEqual<OAuthStateRecord>({
       discordUserId: 'discord-1',
       codeVerifier: 'verifier-abcdefghijklmnopqrstuvwxyz0123456789',
+      // Normalised to null when /link was invoked outside a guild.
+      guildId: null,
     });
 
     await expect(store.consume(state)).rejects.toBeInstanceOf(OAuthStateError);
@@ -52,6 +54,18 @@ describe('OAuth state store', () => {
 
     const record = await store.consume(state);
     expect(record.discordUserId).toBe('only-this-user');
+  });
+
+  it('round-trips the guild id so the OAuth callback can apply the linked role', async () => {
+    const store = createMemoryOAuthStateStore();
+    const { state } = await store.issue({
+      discordUserId: 'discord-3',
+      guildId: '111111111111111111',
+      codeVerifier: 'verifier-abcdefghijklmnopqrstuvwxyz0123456789',
+    });
+
+    const record = await store.consume(state);
+    expect(record.guildId).toBe('111111111111111111');
   });
 });
 

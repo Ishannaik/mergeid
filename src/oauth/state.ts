@@ -1,8 +1,13 @@
 /**
  * OAuth `state` store — single-use nonce bound to the Discord user + PKCE verifier.
  *
- * Redis key: `oauth:state:{state}` → JSON `{ discordUserId, codeVerifier }`
+ * Redis key: `oauth:state:{state}` → JSON `{ discordUserId, guildId, codeVerifier }`
  * with TTL 600s and single-use via GETDEL (docs/oauth-flow.md).
+ *
+ * `guildId` records where `/link` was invoked so the OAuth callback — which has
+ * no interaction of its own — can apply the linked role in the right guild. It
+ * is null for DM invocations and absent on records written before that field
+ * existed; both are handled as "no guild".
  *
  * A memory backend is provided for unit tests (injectable clock for TTL).
  */
@@ -17,6 +22,8 @@ const KEY_PREFIX = 'oauth:state:';
 export interface OAuthStateRecord {
   discordUserId: string;
   codeVerifier: string;
+  /** Guild `/link` was run in; null in DMs, undefined on pre-existing records. */
+  guildId?: string | null;
 }
 
 export interface IssuedOAuthState {
@@ -33,7 +40,11 @@ export class OAuthStateError extends Error {
 }
 
 export interface OAuthStateStore {
-  issue(input: { discordUserId: string; codeVerifier?: string }): Promise<IssuedOAuthState>;
+  issue(input: {
+    discordUserId: string;
+    guildId?: string | null;
+    codeVerifier?: string;
+  }): Promise<IssuedOAuthState>;
   consume(state: string): Promise<OAuthStateRecord>;
 }
 
@@ -55,7 +66,11 @@ export function createMemoryOAuthStateStore(options?: {
       const codeVerifier = input.codeVerifier ?? generateCodeVerifier();
       const state = generateOAuthState();
       map.set(state, {
-        record: { discordUserId: input.discordUserId, codeVerifier },
+        record: {
+          discordUserId: input.discordUserId,
+          codeVerifier,
+          guildId: input.guildId ?? null,
+        },
         expiresAtMs: now() + ttlSeconds * 1000,
       });
       return {
@@ -88,6 +103,7 @@ export function createRedisOAuthStateStore(redis: Redis): OAuthStateStore {
       const payload = JSON.stringify({
         discordUserId: input.discordUserId,
         codeVerifier,
+        guildId: input.guildId ?? null,
       } satisfies OAuthStateRecord);
 
       // NX + EX: refuse overwrite if a collision ever happened; TTL caps volume.

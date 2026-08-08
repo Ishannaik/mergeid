@@ -5,6 +5,7 @@
 import type { FastifyInstance } from 'fastify';
 
 import { OAuthStateError, type OAuthStateStore } from '../../oauth/index.js';
+import { describeRoleOutcome, type LinkedRoleService } from '../../discord/roles.js';
 import { exchangeCodeForToken, fetchGithubProfile } from '../../github/index.js';
 import { AppError } from '../../lib/errors.js';
 import { escapeHtml } from '../../lib/html.js';
@@ -41,9 +42,10 @@ export function registerOAuthRoutes(
     logger: Logger;
     oauthState: OAuthStateStore;
     links: LinkService;
+    linkedRoles: LinkedRoleService;
   },
 ): void {
-  const { config, logger, oauthState, links } = deps;
+  const { config, logger, oauthState, links, linkedRoles } = deps;
 
   app.get<{
     Querystring: { code?: string; state?: string; error?: string; error_description?: string };
@@ -110,6 +112,26 @@ export function registerOAuthRoutes(
         scopes: token.scopes.length > 0 ? token.scopes : config.GITHUB_BASE_SCOPES,
       });
 
+      // This is the only place a link actually succeeds — /link merely hands out
+      // an authorize URL — so the linked role is applied here, in the guild
+      // recorded on the OAuth state. A refusal is reported on the page and
+      // never unwinds the link that already committed above.
+      const roleOutcome = await linkedRoles.grant({
+        guildId: record.guildId ?? null,
+        userId: record.discordUserId,
+      });
+      if (!roleOutcome.ok) {
+        logger.warn(
+          {
+            outcome: roleOutcome.kind,
+            detail: roleOutcome.detail,
+            guildId: record.guildId ?? null,
+          },
+          'linked role grant failed after successful link',
+        );
+      }
+      const roleNote = describeRoleOutcome(roleOutcome, 'grant');
+
       // Initial verification enqueue + DM summary land in M3/M5. M2 confirms link only.
       return reply
         .status(200)
@@ -118,7 +140,7 @@ export function registerOAuthRoutes(
           htmlPage(
             'Linked!',
             `Your GitHub account <strong>@${escapeHtml(profile.login)}</strong> is now linked. You can close this tab and return to Discord.`,
-            'Run /status in Discord to confirm.',
+            [roleNote, 'Run /status in Discord to confirm.'].filter(Boolean).join(' '),
           ),
         );
     } catch (err) {

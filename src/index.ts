@@ -11,7 +11,9 @@ import { createPrismaClient } from './lib/prisma.js';
 import { createRedisClient } from './lib/redis.js';
 import { createRedisOAuthStateStore } from './oauth/index.js';
 import { createLinkService } from './services/index.js';
+import { createLinkedRoleService } from './discord/roles.js';
 import type { RuntimeRole } from './config/index.js';
+import type { Client } from 'discord.js';
 
 async function main(): Promise<void> {
   loadDotenv();
@@ -27,6 +29,26 @@ async function main(): Promise<void> {
   const oauthState = redis ? createRedisOAuthStateStore(redis) : null;
   const links = prisma && logger ? createLinkService({ prisma, config, logger }) : null;
 
+  // Late-bound: the api role starts before the gateway client exists, and the
+  // OAuth callback (api) is what applies the role after a link completes. The
+  // holder is assigned when the bot role boots below; a link cannot complete
+  // before then, because the authorize URL is handed out by the bot itself.
+  let botClient: Client | null = null;
+  const linkedRoles = createLinkedRoleService({
+    config,
+    logger,
+    getClient: () => botClient,
+  });
+
+  if (config.MERGEID_LINKED_ROLE_ID && !roles.has('bot')) {
+    logger.warn(
+      { roleId: config.MERGEID_LINKED_ROLE_ID },
+      'MERGEID_LINKED_ROLE_ID is set but this process does not run the bot role; ' +
+        'role grants will be skipped here — run the bot and api roles together, ' +
+        'or the linked role will never be applied',
+    );
+  }
+
   const shutdownHandlers: Array<() => Promise<void>> = [];
 
   if (roles.has('api')) {
@@ -34,7 +56,7 @@ async function main(): Promise<void> {
       throw new Error('api role requires database and redis');
     }
     const { startApi } = await import('./api/server.js');
-    const api = await startApi({ config, logger, oauthState, links });
+    const api = await startApi({ config, logger, oauthState, links, linkedRoles });
     shutdownHandlers.push(api.stop);
   }
 
@@ -43,7 +65,8 @@ async function main(): Promise<void> {
       throw new Error('bot role requires database and redis');
     }
     const { startBot } = await import('./discord/client.js');
-    const bot = await startBot({ config, logger, oauthState, links });
+    const bot = await startBot({ config, logger, oauthState, links, linkedRoles });
+    botClient = bot.client;
     shutdownHandlers.push(bot.stop);
   }
 

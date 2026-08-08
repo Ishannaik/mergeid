@@ -18,10 +18,23 @@ export type RuntimeRole = (typeof RUNTIME_ROLES)[number];
 /** 32-byte key encoded as 64 lowercase/uppercase hex characters. */
 const HEX_32_BYTES = /^[0-9a-fA-F]{64}$/;
 
+/** Discord snowflake — 64-bit id rendered as decimal digits. */
+const SNOWFLAKE = /^\d{17,20}$/;
+
 const envSchema = z.object({
   DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
   DISCORD_CLIENT_ID: z.string().min(1, 'DISCORD_CLIENT_ID is required'),
   DISCORD_DEV_GUILD_ID: z.string().min(1).optional(),
+  /**
+   * Optional Discord role granted on a successful link and removed on /unlink.
+   * Unset disables the feature entirely (no role calls are ever made).
+   *
+   * Unrelated to MERGEID_ROLES below, which selects runtime processes.
+   */
+  MERGEID_LINKED_ROLE_ID: z
+    .string()
+    .regex(SNOWFLAKE, 'MERGEID_LINKED_ROLE_ID must be a Discord role snowflake (17-20 digits)')
+    .optional(),
 
   GITHUB_CLIENT_ID: z.string().min(1, 'GITHUB_CLIENT_ID is required'),
   GITHUB_CLIENT_SECRET: z.string().min(1, 'GITHUB_CLIENT_SECRET is required'),

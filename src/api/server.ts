@@ -9,6 +9,7 @@ import type { Config } from '../config/index.js';
 import type { Logger } from '../lib/logger.js';
 import type { OAuthStateStore } from '../oauth/index.js';
 import type { LinkService } from '../services/index.js';
+import type { LinkedRoleService } from '../discord/roles.js';
 
 export interface ApiHandle {
   stop: () => Promise<void>;
@@ -19,8 +20,9 @@ export async function startApi(options: {
   logger: Logger;
   oauthState: OAuthStateStore;
   links: LinkService;
+  linkedRoles: LinkedRoleService;
 }): Promise<ApiHandle> {
-  const { config, logger, oauthState, links } = options;
+  const { config, logger, oauthState, links, linkedRoles } = options;
   // Use Fastify's own logger adapter rather than passing the pino instance
   // directly — avoids FastifyBaseLogger vs pino.Logger structural mismatches.
   const app = Fastify({
@@ -34,7 +36,7 @@ export async function startApi(options: {
   });
 
   app.get('/healthz', async () => ({ ok: true, roles: config.MERGEID_ROLES }));
-  registerOAuthRoutes(app, { config, logger, oauthState, links });
+  registerOAuthRoutes(app, { config, logger, oauthState, links, linkedRoles });
 
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
   logger.info({ port: config.PORT }, 'api listening');

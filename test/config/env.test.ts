@@ -57,6 +57,29 @@ describe('loadConfig', () => {
     expect(() => loadConfig(validEnv({ MERGEID_ROLES: 'bot,banana' }))).toThrow(/MERGEID_ROLES/);
   });
 
+  it('leaves MERGEID_LINKED_ROLE_ID undefined when unset (feature off by default)', () => {
+    expect(loadConfig(validEnv()).MERGEID_LINKED_ROLE_ID).toBeUndefined();
+  });
+
+  it('accepts a snowflake for MERGEID_LINKED_ROLE_ID and rejects anything else', () => {
+    const config = loadConfig(validEnv({ MERGEID_LINKED_ROLE_ID: '987654321098765432' }));
+    expect(config.MERGEID_LINKED_ROLE_ID).toBe('987654321098765432');
+
+    for (const bad of ['not-a-snowflake', '123', '@Verified', '1234567890123456789012']) {
+      expect(() => loadConfig(validEnv({ MERGEID_LINKED_ROLE_ID: bad }))).toThrow(
+        /MERGEID_LINKED_ROLE_ID/,
+      );
+    }
+  });
+
+  it('keeps MERGEID_LINKED_ROLE_ID independent of MERGEID_ROLES', () => {
+    const config = loadConfig(
+      validEnv({ MERGEID_LINKED_ROLE_ID: '987654321098765432', MERGEID_ROLES: 'bot' }),
+    );
+    expect(config.MERGEID_ROLES).toEqual(['bot']);
+    expect(config.MERGEID_LINKED_ROLE_ID).toBe('987654321098765432');
+  });
+
   it('parses PORT as a number', () => {
     const config = loadConfig(validEnv({ PORT: '8080' }));
     expect(config.PORT).toBe(8080);

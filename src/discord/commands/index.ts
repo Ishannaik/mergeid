@@ -3,6 +3,7 @@ import { MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { linkCommandData, executeLink } from './link.js';
 import { unlinkCommandData, executeUnlink } from './unlink.js';
 import { statusCommandData, executeStatus } from './status.js';
+import type { LinkedRoleService } from '../roles.js';
 import type { Config } from '../../config/index.js';
 import type { Logger } from '../../lib/logger.js';
 import type { OAuthStateStore } from '../../oauth/index.js';
@@ -15,6 +16,7 @@ export type CommandDeps = {
   logger: Logger;
   oauthState: OAuthStateStore;
   links: LinkService;
+  linkedRoles: LinkedRoleService;
 };
 
 export async function handleChatCommand(
