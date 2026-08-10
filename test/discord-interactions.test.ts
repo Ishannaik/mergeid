@@ -12,11 +12,13 @@ import type { DiscordCommand } from '../src/discord/commands/index.js';
 type FauxInteraction = {
   readonly commandName: string;
   readonly isChatInputCommand: () => boolean;
-  readonly replied: boolean;
-  readonly deferred: boolean;
+  replied: boolean;
+  deferred: boolean;
   readonly user: { readonly id: string };
   readonly guildId: string | null;
+  deferReply: (options: { flags: MessageFlags }) => Promise<unknown>;
   reply: (options: { content: string; flags: MessageFlags }) => Promise<unknown>;
+  editReply: (options: { content: string }) => Promise<unknown>;
   followUp: (options: { content: string; flags: MessageFlags }) => Promise<unknown>;
 };
 
@@ -27,19 +29,23 @@ const COMMAND_NAME = 'verify';
 const ORIGINAL_ERROR = new Error('boom from command handler');
 
 const EPHEMERAL = MessageFlags.Ephemeral;
-
 function baseInteraction(overrides: Partial<FauxInteraction> = {}): FauxInteraction {
-  return {
+  const interaction = {
     commandName: COMMAND_NAME,
     isChatInputCommand: () => true,
     replied: false,
     deferred: false,
     user: { id: SENDER_ID },
     guildId: GUILD_ID,
+    deferReply: undefined,
     reply: vi.fn(async () => undefined) as FauxInteraction['reply'],
+    editReply: vi.fn(async () => undefined) as FauxInteraction['editReply'],
     followUp: vi.fn(async () => undefined) as FauxInteraction['followUp'],
-    ...overrides,
-  };
+  } as unknown as FauxInteraction;
+  interaction.deferReply = vi.fn(async () => {
+    interaction.deferred = true;
+  }) as FauxInteraction['deferReply'];
+  return Object.assign(interaction, overrides);
 }
 
 /** A throwing command to exercise the failure paths. */
@@ -53,168 +59,92 @@ function throwingCommand(): DiscordCommand {
 }
 
 describe('createInteractionHandler', () => {
-  it('ignores interactions that are not chat-input commands', async () => {
-    const idleExecute = vi.fn(async () => undefined);
-    const command: DiscordCommand = {
-      data: { name: COMMAND_NAME, description: 'verify a GitHub account', type: 1 },
-      execute: idleExecute,
-    };
-    const log = {
-      warn: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      debug: vi.fn(),
-    };
-
-    const interaction = baseInteraction({
-      commandName: COMMAND_NAME,
-      isChatInputCommand: () => false,
-    });
-
-    const handle = createInteractionHandler([command], log);
-    await handle(interaction as unknown as ChatInputCommandInteraction);
-
-    // An ignored interaction is never replied to, never logged, and never dispatched.
-    expect(interaction.reply).not.toHaveBeenCalled();
-    expect(interaction.followUp).not.toHaveBeenCalled();
-    expect(log.warn).not.toHaveBeenCalled();
-    expect(log.error).not.toHaveBeenCalled();
-    expect(idleExecute).not.toHaveBeenCalled();
+  const createLog = () => ({
+    warn: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
   });
 
-  it('dispatches a known chat command and runs execute exactly once', async () => {
+  it('ignores interactions that are not chat-input commands', async () => {
     const execute = vi.fn(async () => undefined);
     const command: DiscordCommand = {
       data: { name: COMMAND_NAME, description: 'verify a GitHub account', type: 1 },
       execute,
     };
-    const log = {
-      warn: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      debug: vi.fn(),
-    };
+    const log = createLog();
+    const interaction = baseInteraction({ isChatInputCommand: () => false });
 
+    const handle = createInteractionHandler([command], log);
+    await handle(interaction as unknown as ChatInputCommandInteraction);
+
+    expect(interaction.deferReply).not.toHaveBeenCalled();
+    expect(interaction.reply).not.toHaveBeenCalled();
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    expect(log.warn).not.toHaveBeenCalled();
+    expect(log.error).not.toHaveBeenCalled();
+  });
+
+  it('defers known commands ephemerally before dispatch', async () => {
+    const execute = vi.fn(async () => undefined);
+    const command: DiscordCommand = {
+      data: { name: COMMAND_NAME, description: 'verify a GitHub account', type: 1 },
+      execute,
+    };
+    const log = createLog();
     const interaction = baseInteraction();
 
     const handle = createInteractionHandler([command], log);
     await handle(interaction as unknown as ChatInputCommandInteraction);
 
-    expect(execute).toHaveBeenCalledTimes(1);
-    expect(execute).toHaveBeenCalledWith(interaction as unknown as ChatInputCommandInteraction);
-    // A successful run neither replies with the safe messages nor logs a failure.
-    expect(interaction.reply).not.toHaveBeenCalled();
-    expect(interaction.followUp).not.toHaveBeenCalled();
-    expect(log.warn).not.toHaveBeenCalled();
+    expect(interaction.deferReply).toHaveBeenCalledExactlyOnceWith({ flags: EPHEMERAL });
+    expect(execute).toHaveBeenCalledExactlyOnceWith(
+      interaction as unknown as ChatInputCommandInteraction,
+    );
+    expect(interaction.deferReply.mock.invocationCallOrder[0]).toBeLessThan(
+      execute.mock.invocationCallOrder[0]!,
+    );
     expect(log.error).not.toHaveBeenCalled();
   });
 
-  it('replies with the exact safe ephemeral message and warns for an unknown command', async () => {
-    const log = {
-      warn: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      debug: vi.fn(),
-    };
-    const interaction = baseInteraction({
-      commandName: 'nope-not-registered',
-      guildId: GUILD_ID,
-    });
+  it('replies ephemerally and warns for an unknown command without deferring', async () => {
+    const log = createLog();
+    const interaction = baseInteraction({ commandName: 'nope-not-registered' });
+    const handle = createInteractionHandler([], log);
 
-    const handle = createInteractionHandler(
-      [
-        {
-          data: { name: 'something-else', description: 'x', type: 1 },
-          execute: vi.fn(),
-        },
-      ],
-      log,
-    );
     await handle(interaction as unknown as ChatInputCommandInteraction);
 
-    // Unacknowledged path → exact safe reply, no followUp.
-    expect(interaction.reply).toHaveBeenCalledTimes(1);
-    expect(interaction.reply).toHaveBeenCalledWith({
+    expect(interaction.deferReply).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledExactlyOnceWith({
       content: 'Unknown command.',
       flags: EPHEMERAL,
     });
+    expect(interaction.editReply).not.toHaveBeenCalled();
     expect(interaction.followUp).not.toHaveBeenCalled();
-
-    // Structured warning includes the command/user/guild identifiers.
-    expect(log.warn).toHaveBeenCalledTimes(1);
     const payload = log.warn.mock.calls[0]![0];
     expect(payload).toMatchObject({
       commandName: 'nope-not-registered',
       userId: SENDER_ID,
       guildId: GUILD_ID,
     });
-    expect(payload).not.toHaveProperty('err'); // unknown command is not an error
-    expect(log.error).not.toHaveBeenCalled();
+    expect(payload).not.toHaveProperty('err');
   });
 
-  it('replies with the exact safe ephemeral message and logs a structured error (incl. original error) when a handler throws before acknowledgment', async () => {
-    const log = {
-      warn: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      debug: vi.fn(),
-    };
-
-    const interaction = baseInteraction({
-      commandName: COMMAND_NAME,
-      replied: false,
-      deferred: false,
-    });
-
+  it('edits the private deferred response when a command throws', async () => {
+    const log = createLog();
+    const interaction = baseInteraction();
     const handle = createInteractionHandler([throwingCommand()], log);
+
     await handle(interaction as unknown as ChatInputCommandInteraction);
 
-    // Unacknowledged path → reply used (not followUp).
-    expect(interaction.reply).toHaveBeenCalledTimes(1);
-    expect(interaction.reply).toHaveBeenCalledWith({
+    expect(interaction.deferReply).toHaveBeenCalledExactlyOnceWith({ flags: EPHEMERAL });
+    expect(interaction.editReply).toHaveBeenCalledExactlyOnceWith({
       content: 'Something went wrong while running this command.',
-      flags: EPHEMERAL,
     });
+    expect(interaction.reply).not.toHaveBeenCalled();
     expect(interaction.followUp).not.toHaveBeenCalled();
-
-    // Structured error retains the original thrown error plus command/user/guild ids.
-    expect(log.error).toHaveBeenCalledTimes(1);
-    const payload = log.error.mock.calls[0]![0];
-    expect(payload).toMatchObject({
-      commandName: COMMAND_NAME,
-      userId: SENDER_ID,
-      guildId: GUILD_ID,
-    });
-    // The original error object must be attached so callers preserve the stack cause.
-    expect(payload.err).toBe(ORIGINAL_ERROR);
-    expect(log.warn).not.toHaveBeenCalled();
-  });
-
-  it('uses followUp instead of reply when the interaction was already replied', async () => {
-    const log = {
-      warn: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      debug: vi.fn(),
-    };
-
-    const interaction = baseInteraction({
-      commandName: COMMAND_NAME,
-      replied: true,
-      deferred: false,
-    });
-
-    const handle = createInteractionHandler([throwingCommand()], log);
-    await handle(interaction as unknown as ChatInputCommandInteraction);
-
-    expect(interaction.followUp).toHaveBeenCalledTimes(1);
-    expect(interaction.followUp).toHaveBeenCalledWith({
-      content: 'Something went wrong while running this command.',
-      flags: EPHEMERAL,
-    });
-    expect(interaction.reply).not.toHaveBeenCalled();
-
-    expect(log.error).toHaveBeenCalledTimes(1);
     const payload = log.error.mock.calls[0]![0];
     expect(payload).toMatchObject({
       commandName: COMMAND_NAME,
@@ -224,37 +154,24 @@ describe('createInteractionHandler', () => {
     expect(payload.err).toBe(ORIGINAL_ERROR);
   });
 
-  it('uses followUp instead of reply when the interaction was deferred', async () => {
-    const log = {
-      warn: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      debug: vi.fn(),
-    };
-
-    const interaction = baseInteraction({
-      commandName: COMMAND_NAME,
-      replied: false,
-      deferred: true,
+  it('uses an ephemeral followUp when a command fails after replying', async () => {
+    const log = createLog();
+    const interaction = baseInteraction();
+    const command = throwingCommand();
+    command.execute = vi.fn(async () => {
+      interaction.replied = true;
+      throw ORIGINAL_ERROR;
     });
+    const handle = createInteractionHandler([command], log);
 
-    const handle = createInteractionHandler([throwingCommand()], log);
     await handle(interaction as unknown as ChatInputCommandInteraction);
 
-    expect(interaction.followUp).toHaveBeenCalledTimes(1);
-    expect(interaction.followUp).toHaveBeenCalledWith({
+    expect(interaction.followUp).toHaveBeenCalledExactlyOnceWith({
       content: 'Something went wrong while running this command.',
       flags: EPHEMERAL,
     });
+    expect(interaction.editReply).not.toHaveBeenCalled();
     expect(interaction.reply).not.toHaveBeenCalled();
-
-    expect(log.error).toHaveBeenCalledTimes(1);
-    const payload = log.error.mock.calls[0]![0];
-    expect(payload).toMatchObject({
-      commandName: COMMAND_NAME,
-      userId: SENDER_ID,
-      guildId: GUILD_ID,
-    });
-    expect(payload.err).toBe(ORIGINAL_ERROR);
+    expect(log.error.mock.calls[0]![0].err).toBe(ORIGINAL_ERROR);
   });
 });

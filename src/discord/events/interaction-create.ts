@@ -46,10 +46,9 @@ function contextOf(interaction: ChatInputCommandInteraction): InteractionContext
 }
 
 /**
- * Sends one of the fixed safe messages, choosing the only endpoint Discord
  * accepts for the interaction's current state: `reply` while it is still
- * unacknowledged, `followUp` once a handler has replied or deferred.
- *
+ * unacknowledged, `editReply` to resolve an ephemeral defer, and `followUp`
+ * after a handler has already replied.
  * A failure here is terminal for the user — the interaction token may have
  * expired, or the gateway may be unreachable — but it must not be swallowed,
  * so it is reported as a second structured error. It is never surfaced to
@@ -62,11 +61,11 @@ async function sendSafeResponse(
   context: InteractionContext,
   log: InteractionLogger,
 ): Promise<void> {
-  const acknowledged = interaction.replied || interaction.deferred;
-
   try {
-    if (acknowledged) {
+    if (interaction.replied) {
       await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+    } else if (interaction.deferred) {
+      await interaction.editReply({ content });
     } else {
       await interaction.reply({ content, flags: MessageFlags.Ephemeral });
     }
@@ -114,6 +113,7 @@ export function createInteractionHandler(
     }
 
     try {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       await command.execute(interaction);
     } catch (err) {
       // The original error is attached verbatim so the serialiser keeps its

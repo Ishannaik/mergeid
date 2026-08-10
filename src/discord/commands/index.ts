@@ -10,6 +10,10 @@ import type {
  * `data` is the already-serialised body (`SlashCommandBuilder.toJSON()`), which
  * is exactly what `deployCommands` bulk-PUTs, so the deployed surface and the
  * dispatch table can never drift apart.
+ *
+ * The router defers every known command ephemerally before dispatch. Handlers
+ * complete that private initial response with `editReply` and may use
+ * `followUp` only for additional messages.
  */
 export interface DiscordCommand {
   readonly data: RESTPostAPIApplicationCommandsJSONBody;

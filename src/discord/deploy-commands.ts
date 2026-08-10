@@ -59,6 +59,7 @@ interface DeployEntrypointOptions {
   readonly argv1?: string;
   readonly moduleUrl?: string;
   readonly run?: () => Promise<void>;
+  readonly loadEnvironment?: () => void;
   readonly logError?: (fields: { readonly err: unknown }, message: string) => void;
   readonly setExitCode?: (code: number) => void;
 }
@@ -120,6 +121,17 @@ export async function runDeployCommands({
   await deploy({ config: readConfig(), commandList });
 }
 
+function loadLocalEnvironment(): void {
+  try {
+    process.loadEnvFile('.env');
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') {
+      return;
+    }
+    throw error;
+  }
+}
+
 /**
  * Runs deployment only when this module is the process entry point.
  *
@@ -131,6 +143,7 @@ export async function runDeployEntrypoint({
   moduleUrl = import.meta.url,
   run = runDeployCommands,
   logError = (fields, message) => logger.error(fields, message),
+  loadEnvironment = loadLocalEnvironment,
   setExitCode = (code) => {
     process.exitCode = code;
   },
@@ -140,6 +153,7 @@ export async function runDeployEntrypoint({
   }
 
   try {
+    loadEnvironment();
     await run();
   } catch (err) {
     logError({ err }, 'Failed to register Discord application commands');

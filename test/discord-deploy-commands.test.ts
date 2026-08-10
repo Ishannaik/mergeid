@@ -147,12 +147,19 @@ describe('deployCommands', () => {
     });
   });
 
-  it('executes the direct module path with the shared registry', async () => {
+  it('loads the local environment before direct deployment uses the shared registry', async () => {
+    const order: string[] = [];
     const deploy = vi.fn().mockResolvedValue(undefined);
+    const loadEnvironment = vi.fn(() => {
+      order.push('environment');
+    });
     const run = () =>
       deployCommandModule.runDeployCommands!({
         deploy,
-        readConfig: () => validConfig,
+        readConfig: () => {
+          order.push('config');
+          return validConfig;
+        },
       });
     const setExitCode = vi.fn();
 
@@ -160,10 +167,12 @@ describe('deployCommands', () => {
     await deployCommandModule.runDeployEntrypoint!({
       argv1: '/tmp/deploy-commands.js',
       moduleUrl: 'file:///tmp/deploy-commands.js',
+      loadEnvironment,
       run,
       setExitCode,
     });
 
+    expect(order).toEqual(['environment', 'config']);
     expect(deploy).toHaveBeenCalledExactlyOnceWith({
       config: validConfig,
       commandList: commands,
@@ -171,15 +180,18 @@ describe('deployCommands', () => {
     expect(setExitCode).not.toHaveBeenCalled();
   });
 
-  it('keeps imports inert when the module is not the direct entrypoint', async () => {
+  it('keeps imports inert without loading the local environment', async () => {
+    const loadEnvironment = vi.fn();
     const run = vi.fn().mockResolvedValue(undefined);
 
     await deployCommandModule.runDeployEntrypoint!({
       argv1: '/tmp/vitest.js',
       moduleUrl: 'file:///tmp/deploy-commands.js',
+      loadEnvironment,
       run,
     });
 
+    expect(loadEnvironment).not.toHaveBeenCalled();
     expect(run).not.toHaveBeenCalled();
   });
 

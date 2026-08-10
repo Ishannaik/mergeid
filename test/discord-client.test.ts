@@ -68,6 +68,7 @@ function chatInteraction(commandName: string): ChatInputCommandInteraction {
     deferred: false,
     user: { id: 'user-id' },
     guildId: 'guild-id',
+    deferReply: vi.fn(),
     reply: vi.fn(),
     followUp: vi.fn(),
   } as unknown as ChatInputCommandInteraction;
