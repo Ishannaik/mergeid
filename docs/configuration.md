@@ -40,6 +40,19 @@ database client.
 5. In each server, place MergeID's role **above** every role it should manage and **below**
    privileged roles (admin, owner-level).
 
+### Deploy slash commands
+
+Set `DISCORD_TOKEN` and `DISCORD_CLIENT_ID`, then register the current shared command registry:
+
+```sh
+pnpm deploy-commands
+```
+
+With `DISCORD_DEV_GUILD_ID` unset, registration is global. Set it during development to update
+commands in only that guild, where changes propagate immediately. Registration is one bulk
+replacement for the selected scope; deploying an empty registry clears commands in that scope.
+Keep the bot token in the environment—never paste it into the command or print it in logs.
+
 ## 3. GitHub OAuth App setup
 
 1. Profile → Settings → Developer settings → **OAuth Apps** → **New OAuth App**.
