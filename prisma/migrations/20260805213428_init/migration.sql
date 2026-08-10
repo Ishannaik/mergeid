@@ -82,7 +82,7 @@ CREATE TABLE "role_grants" (
     "rule_id" UUID NOT NULL,
     "granted_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "role_grants_pkey" PRIMARY KEY ("guild_id","discord_user_id","role_id")
+    CONSTRAINT "role_grants_pkey" PRIMARY KEY ("guild_id","discord_user_id","role_id","rule_id")
 );
 
 -- CreateTable
@@ -163,4 +163,3 @@ ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_guild_id_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "sync_runs" ADD CONSTRAINT "sync_runs_rule_id_fkey" FOREIGN KEY ("rule_id") REFERENCES "verification_rules"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-

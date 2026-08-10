@@ -71,7 +71,7 @@ erDiagram
         string guild_id PK
         string discord_user_id PK
         string role_id PK
-        string rule_id FK
+        string rule_id PK,FK
         timestamptz granted_at
     }
     audit_events {
@@ -155,8 +155,9 @@ upserted on each check. Powers diff-based role reconciliation and the zero-call 
 
 ### `role_grants`
 
-Idempotency ledger of roles MergeID granted, and which rule justified them. On revoke, the row is
-deleted. MergeID never touches roles not present here (see security model §role safety).
+Idempotency and provenance ledger with one row per `(guild, user, role, rule)`. Reconciliation
+deduplicates those rows by role and removes the Discord role only after the final qualifying rule
+stops granting it. MergeID never touches roles not present here (see security model §role safety).
 
 ### `audit_events`
 
@@ -173,7 +174,8 @@ Per-rule sweep statistics: checked/added/removed/error counts and terminal statu
 
 - `verification_rules (guild_id, enabled)`
 - `membership_results (rule_id, status)` — sweep queries
-- `role_grants (guild_id, discord_user_id)` — reconcile on join/verify
+- `role_grants (rule_id)` — rule deletion and provenance lookup; the primary-key prefix serves
+  `(guild_id, discord_user_id)` reconciliation
 - `audit_events (guild_id, at DESC)` — admin viewer
 - `github_links (github_user_id)` — duplicate-link guard
 

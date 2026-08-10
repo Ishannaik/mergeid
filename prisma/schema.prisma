@@ -135,7 +135,9 @@ model RoleGrant {
   user  User             @relation(fields: [discordUserId], references: [discordUserId], onDelete: Cascade)
   rule  VerificationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
-  @@id([guildId, discordUserId, roleId])
+  // Keep one provenance row per qualifying rule. Reconciliation can then
+  // remove the Discord role only after the final rule stops granting it.
+  @@id([guildId, discordUserId, roleId, ruleId])
   // docs/database.md lists (guild_id, discord_user_id) for reconciliation on
   // join/verify. That is the leftmost prefix of the primary key above, which
   // Postgres already serves from the PK's index.
