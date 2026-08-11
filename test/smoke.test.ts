@@ -6,6 +6,7 @@ const packageJson = JSON.parse(
 ) as {
   type?: string;
   engines?: { node?: string };
+  scripts?: Record<string, string>;
 };
 
 describe('package metadata', () => {
@@ -13,6 +14,12 @@ describe('package metadata', () => {
     expect(packageJson).toMatchObject({
       type: 'module',
       engines: { node: '>=22' },
+    });
+  });
+
+  it('provides the executable slash-command deployment script', () => {
+    expect(packageJson.scripts).toMatchObject({
+      'deploy-commands': 'prisma generate && tsc && node dist/discord/deploy-commands.js',
     });
   });
 });

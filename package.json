@@ -11,6 +11,7 @@
   "packageManager": "pnpm@10.27.0",
   "scripts": {
     "build": "prisma generate && tsc",
+    "deploy-commands": "prisma generate && tsc && node dist/discord/deploy-commands.js",
     "start": "node dist/index.js",
     "typecheck": "prisma generate && tsc --noEmit",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
