@@ -13,6 +13,7 @@
     "build": "prisma generate && tsc",
     "start": "node dist/index.js",
     "typecheck": "prisma generate && tsc --noEmit",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

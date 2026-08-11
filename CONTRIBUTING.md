@@ -8,6 +8,22 @@ OAuth, org/repo/team verification, and automatic role sync.
 > internal APIs are not stable. Check the [roadmap](docs/roadmap.md) and open
 > an issue to discuss your idea before starting a large pull request.
 
+## Local development in 5 minutes
+
+```bash
+git clone https://github.com/Ishannaik/mergeid.git
+cd mergeid
+pnpm install
+pnpm check
+```
+
+On a clean clone with Node.js 22+ and pnpm 10, the final command exits with 0.
+`pnpm lint` and `pnpm typecheck` produce no output, and `pnpm test` ends with:
+
+```text
+No test files found, exiting with code 0
+```
+
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) >= 22
@@ -25,14 +41,15 @@ cp .env.example .env   # on Windows: copy .env.example .env — then fill in the
 
 ### Scripts
 
-| Command             | Description                       |
-| ------------------- | --------------------------------- |
-| `pnpm build`        | Compile TypeScript to `dist/`     |
-| `pnpm typecheck`    | Type-check without emitting files |
-| `pnpm lint`         | Run the linter                    |
-| `pnpm format`       | Format the codebase               |
-| `pnpm format:check` | Check formatting without writing  |
-| `pnpm test`         | Run the test suite                |
+| Command             | Description                             |
+| ------------------- | --------------------------------------- |
+| `pnpm build`        | Compile TypeScript to `dist/`           |
+| `pnpm typecheck`    | Type-check without emitting files       |
+| `pnpm check`        | Run lint, typecheck, and tests together |
+| `pnpm lint`         | Run the linter                          |
+| `pnpm format`       | Format the codebase                     |
+| `pnpm format:check` | Check formatting without writing        |
+| `pnpm test`         | Run the test suite                      |
 
 Run `pnpm lint`, `pnpm typecheck`, and `pnpm test` before pushing.
 
