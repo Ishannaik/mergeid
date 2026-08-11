@@ -45,7 +45,7 @@ database client.
 Set `DISCORD_TOKEN` and `DISCORD_CLIENT_ID`, then register the current shared command registry:
 
 ```sh
-bun run deploy-commands
+pnpm run deploy-commands
 ```
 
 With `DISCORD_DEV_GUILD_ID` unset, registration is global. Set it during development to update
