@@ -53,6 +53,22 @@ describe('createTokenCrypto', () => {
     expect(crypto.decrypt(crypto.encrypt(plaintext))).toBe(plaintext);
   });
 
+  it.each([
+    ['a lone high surrogate', '\uD800'],
+    ['a lone low surrogate', '\uDC00'],
+    ['a high surrogate followed by a non-low-surrogate character', '\uD800A'],
+  ])('rejects %s during encryption', (_description, plaintext) => {
+    expect(() => makeCrypto().encrypt(plaintext)).toThrow(TokenCryptoError);
+  });
+
+  it('rejects a valid pair followed by an extra unpaired low surrogate without revealing plaintext', () => {
+    const marker = 'surrounding-invalid-plaintext-marker';
+    const invalidPlaintext = `${marker}\uD83D\uDE00\uDC00${marker}`;
+    const error = expectTokenCryptoError(() => makeCrypto().encrypt(invalidPlaintext));
+
+    expect(error.message).not.toContain(marker);
+  });
+
   it('emits a four-part versioned canonical envelope with a 12-byte IV and 16-byte tag', () => {
     const envelope = makeCrypto().encrypt('token');
     const parts = envelope.split(':');

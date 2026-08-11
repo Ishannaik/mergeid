@@ -37,7 +37,12 @@ export type TokenCryptoOptions = Readonly<{
   legacy?: readonly TokenEncryptionKey[];
 }>;
 
-/** Envelope encryption bound to one set of keys. */
+/**
+ * Envelope encryption bound to one set of keys.
+ *
+ * `encrypt` rejects plaintext that is not well-formed UTF-16; `decrypt`
+ * rejects any envelope it cannot authenticate.
+ */
 export type TokenCrypto = Readonly<{
   encrypt(plaintext: string): string;
   decrypt(envelope: string): string;
@@ -54,6 +59,10 @@ export class TokenCryptoError extends Error {
 const ALGORITHM = 'aes-256-gcm';
 const IV_BYTES = 12;
 const AUTH_TAG_BYTES = 16;
+const HIGH_SURROGATE_FIRST = 0xd800;
+const HIGH_SURROGATE_LAST = 0xdbff;
+const LOW_SURROGATE_FIRST = 0xdc00;
+const LOW_SURROGATE_LAST = 0xdfff;
 
 /** 32 bytes of key material, hex encoded. */
 const KEY_PATTERN = /^[0-9a-fA-F]{64}$/;
@@ -64,6 +73,7 @@ const VERSION_PREFIX_PATTERN = /^v[1-9][0-9]*$/;
 const MALFORMED = 'Token envelope is malformed.';
 const UNKNOWN_VERSION = 'Token envelope uses an unknown key version.';
 const UNDECRYPTABLE = 'Token envelope could not be decrypted.';
+const ILL_FORMED = 'Token plaintext is not well-formed UTF-16.';
 
 /** A decoded key, with the wire prefix and its AAD derived once. */
 type VersionedKey = Readonly<{
@@ -132,6 +142,44 @@ function decodeField(field: string): Buffer {
 }
 
 /**
+ * Reports whether every surrogate in `value` belongs to a complete pair.
+ *
+ * UTF-8 encoding is lossy for an unpaired surrogate — it substitutes U+FFFD —
+ * so an ill-formed plaintext would decrypt to text that was never encrypted.
+ * The scan walks code units in place, allocating nothing.
+ *
+ * `String.prototype.isWellFormed` would do this natively, but it is ES2024 and
+ * this project compiles against the ES2023 library.
+ */
+function isWellFormedUtf16(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const unit = value.charCodeAt(index);
+
+    if (unit < HIGH_SURROGATE_FIRST || unit > LOW_SURROGATE_LAST) {
+      continue;
+    }
+
+    // Every paired low surrogate is consumed with its high half below, so one
+    // reached on its own has no preceding high surrogate.
+    if (unit > HIGH_SURROGATE_LAST) {
+      return false;
+    }
+
+    // Past the end this is NaN, which fails the range test — the negated form
+    // is deliberate, since every comparison against NaN is false.
+    const next = value.charCodeAt(index + 1);
+
+    if (!(next >= LOW_SURROGATE_FIRST && next <= LOW_SURROGATE_LAST)) {
+      return false;
+    }
+
+    index += 1;
+  }
+
+  return true;
+}
+
+/**
  * Creates a {@link TokenCrypto} over `options`.
  *
  * Configuration is validated and every key decoded here, once: the returned
@@ -150,6 +198,12 @@ export function createTokenCrypto(options: TokenCryptoOptions): TokenCrypto {
 
   return {
     encrypt(plaintext: string): string {
+      // Reject ill-formed input before any randomness or key material is
+      // touched: a lossy UTF-8 round trip must never reach storage.
+      if (!isWellFormedUtf16(plaintext)) {
+        throw new TokenCryptoError(ILL_FORMED);
+      }
+
       const iv = randomBytes(IV_BYTES);
       const cipher = createCipheriv(ALGORITHM, active.key, iv, { authTagLength: AUTH_TAG_BYTES });
 
