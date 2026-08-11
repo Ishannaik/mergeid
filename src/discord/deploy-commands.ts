@@ -79,10 +79,9 @@ export async function deployCommands({
   rest,
   log,
 }: DeployCommandsOptions): Promise<void> {
-  // `REST` types its route as a template literal, so the concrete client needs a
-  // cast to satisfy the structural surface the injected double implements.
-  const client =
-    rest ?? (new REST({ version: '10' }).setToken(config.token) as unknown as RestLike);
+  // `REST` already satisfies `RestLike` structurally, so the real client and an
+  // injected double reach the same call site without a cast.
+  const client: RestLike = rest ?? new REST({ version: '10' }).setToken(config.token);
 
   const { applicationId, devGuildId } = config;
   const body = commandList.map((command) => command.data);

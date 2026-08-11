@@ -130,15 +130,40 @@ describe('deployCommands', () => {
     devGuildId: 'dev-guild-id',
   } as const;
 
+  /**
+   * The exact REST slice `deployCommands` consumes. Declaring the double against
+   * this signature — instead of a bare `vi.fn()` — keeps `put.mock.calls` a
+   * precise argument tuple, so the route and payload checks below inspect real
+   * types rather than `any`.
+   */
+  type RestPut = (
+    route: string,
+    options: { readonly body: readonly RESTPostAPIApplicationCommandsJSONBody[] },
+  ) => Promise<unknown>;
+
   const createRest = () => ({
-    put: vi.fn().mockResolvedValue([]),
+    put: vi.fn<RestPut>().mockResolvedValue([]),
   });
+
+  /**
+   * Reads the recorded bulk PUT. Indexing the call log yields `T | undefined`
+   * under `noUncheckedIndexedAccess`, so a missing call fails loudly here rather
+   * than destructuring into `undefined` and quietly satisfying the assertions.
+   */
+  const firstPutCall = (calls: readonly Parameters<RestPut>[]): Parameters<RestPut> => {
+    const [call] = calls;
+    if (call === undefined) {
+      throw new Error('expected deployCommands to issue a bulk PUT');
+    }
+    return call;
+  };
+
   it('wires direct deployment to the shared command registry', async () => {
     const deploy = vi.fn().mockResolvedValue(undefined);
     const readConfig = vi.fn(() => validConfig);
 
     expect(deployCommandModule.runDeployCommands).toBeTypeOf('function');
-    await deployCommandModule.runDeployCommands!({ deploy, readConfig });
+    await deployCommandModule.runDeployCommands({ deploy, readConfig });
 
     expect(readConfig).toHaveBeenCalledTimes(1);
     expect(deploy).toHaveBeenCalledExactlyOnceWith({
@@ -154,7 +179,7 @@ describe('deployCommands', () => {
       order.push('environment');
     });
     const run = () =>
-      deployCommandModule.runDeployCommands!({
+      deployCommandModule.runDeployCommands({
         deploy,
         readConfig: () => {
           order.push('config');
@@ -164,7 +189,7 @@ describe('deployCommands', () => {
     const setExitCode = vi.fn();
 
     expect(deployCommandModule.runDeployEntrypoint).toBeTypeOf('function');
-    await deployCommandModule.runDeployEntrypoint!({
+    await deployCommandModule.runDeployEntrypoint({
       argv1: '/tmp/deploy-commands.js',
       moduleUrl: 'file:///tmp/deploy-commands.js',
       loadEnvironment,
@@ -184,7 +209,7 @@ describe('deployCommands', () => {
     const loadEnvironment = vi.fn();
     const run = vi.fn().mockResolvedValue(undefined);
 
-    await deployCommandModule.runDeployEntrypoint!({
+    await deployCommandModule.runDeployEntrypoint({
       argv1: '/tmp/vitest.js',
       moduleUrl: 'file:///tmp/deploy-commands.js',
       loadEnvironment,
@@ -200,7 +225,7 @@ describe('deployCommands', () => {
     const logError = vi.fn();
     const setExitCode = vi.fn();
 
-    await deployCommandModule.runDeployEntrypoint!({
+    await deployCommandModule.runDeployEntrypoint({
       argv1: '/tmp/deploy-commands.js',
       moduleUrl: 'file:///tmp/deploy-commands.js',
       run: vi.fn().mockRejectedValue(error),
@@ -226,7 +251,7 @@ describe('deployCommands', () => {
 
     expect(rest.put).toHaveBeenCalledTimes(1);
 
-    const [route, options] = rest.put.mock.calls[0]!;
+    const [route, options] = firstPutCall(rest.put.mock.calls);
     expect(route).toBe(Routes.applicationCommands(validConfig.applicationId));
     expect(options).toEqual({ body: commandBodies });
     // The global guild-scoped route must never be reached here.
@@ -248,7 +273,7 @@ describe('deployCommands', () => {
 
     expect(rest.put).toHaveBeenCalledTimes(1);
 
-    const [route, options] = rest.put.mock.calls[0]!;
+    const [route, options] = firstPutCall(rest.put.mock.calls);
     expect(route).toBe(
       Routes.applicationGuildCommands(devConfig.applicationId, devConfig.devGuildId),
     );
@@ -327,7 +352,7 @@ describe('deployCommands', () => {
     // A single bulk PUT is still performed (clearing commands is a real operation),
     // but the body must be exactly empty and the route must remain global.
     expect(rest.put).toHaveBeenCalledTimes(1);
-    const [route, options] = rest.put.mock.calls[0]!;
+    const [route, options] = firstPutCall(rest.put.mock.calls);
     expect(route).toBe(Routes.applicationCommands(validConfig.applicationId));
     expect(options).toEqual({ body: [] });
   });

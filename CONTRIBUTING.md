@@ -17,12 +17,8 @@ pnpm install
 pnpm check
 ```
 
-On a clean clone with Node.js 22+ and pnpm 10, the final command exits with 0.
-`pnpm lint` and `pnpm typecheck` produce no output, and `pnpm test` ends with:
-
-```text
-No test files found, exiting with code 0
-```
+On a clean clone with Node.js 22+ and pnpm 10, that last command runs lint,
+format check, typecheck, and tests in sequence, and exits with 0.
 
 ## Prerequisites
 
@@ -41,17 +37,19 @@ cp .env.example .env   # on Windows: copy .env.example .env — then fill in the
 
 ### Scripts
 
-| Command             | Description                             |
-| ------------------- | --------------------------------------- |
-| `pnpm build`        | Compile TypeScript to `dist/`           |
-| `pnpm typecheck`    | Type-check without emitting files       |
-| `pnpm check`        | Run lint, typecheck, and tests together |
-| `pnpm lint`         | Run the linter                          |
-| `pnpm format`       | Format the codebase                     |
-| `pnpm format:check` | Check formatting without writing        |
-| `pnpm test`         | Run the test suite                      |
+| Command             | Description                                  |
+| ------------------- | -------------------------------------------- |
+| `pnpm build`        | Compile TypeScript to `dist/`                |
+| `pnpm typecheck`    | Type-check without emitting files            |
+| `pnpm check`        | Run lint, format check, typecheck, and tests |
+| `pnpm lint`         | Run ESLint (warnings are errors)             |
+| `pnpm lint:fix`     | Run ESLint and apply autofixes               |
+| `pnpm format`       | Format the codebase                          |
+| `pnpm format:check` | Check formatting without writing             |
+| `pnpm test`         | Run the test suite                           |
 
-Run `pnpm lint`, `pnpm typecheck`, and `pnpm test` before pushing.
+Run `pnpm check` before pushing; `pnpm lint:fix` and `pnpm format` fix most of
+what it reports.
 
 ## Branching
 
@@ -82,7 +80,7 @@ title must follow the same convention:
 Before opening a PR, make sure:
 
 - [ ] Tests are added or updated for the change
-- [ ] `pnpm lint`, `pnpm typecheck`, and `pnpm test` all pass
+- [ ] `pnpm check` passes (lint, format check, typecheck, tests)
 - [ ] Documentation is updated if the change is user-facing
 - [ ] The PR covers one concern — split larger changes into multiple PRs
 

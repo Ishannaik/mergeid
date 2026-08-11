@@ -7,16 +7,27 @@
 
 Runs on every push to `main` and every pull request:
 
-| Step      | Command                                                                           | Gate |
-| --------- | --------------------------------------------------------------------------------- | ---- |
-| Lint      | `pnpm lint` (ESLint flat config, typescript-eslint recommended + prettier compat) | hard |
-| Format    | `pnpm format:check` (Prettier)                                                    | hard |
-| Typecheck | `pnpm typecheck` (`tsc --noEmit`, strict)                                         | hard |
-| Test      | `pnpm test` (Vitest; coverage enforced once suites exist in M2+)                  | hard |
-| Build     | `pnpm build`                                                                      | hard |
+| Step      | Command                                                                            | Gate |
+| --------- | ---------------------------------------------------------------------------------- | ---- |
+| Lint      | `pnpm lint` (ESLint flat config, type-aware typescript-eslint, `--max-warnings 0`) | hard |
+| Format    | `pnpm format:check` (Prettier)                                                     | hard |
+| Typecheck | `pnpm typecheck` (`tsc --noEmit`, strict)                                          | hard |
+| Test      | `pnpm test` (Vitest; coverage enforced once suites exist in M2+)                   | hard |
+| Build     | `pnpm build`                                                                       | hard |
 
 Node 24 (active LTS) runtime in CI; engines field requires `>=22` locally (22.x remains in
 maintenance LTS until 2027-04).
+
+ESLint runs type-aware: the `typescript-eslint` type-checked rules are backed by a dedicated
+`tsconfig.eslint.json` project, so linting sees types and catches what syntax-only rules cannot —
+floating promises, unsafe `any` flow, misused unions. It stays a correctness gate, never a style
+one: Prettier is still the sole formatter, `eslint-config-prettier` sits last in the flat config so
+the two cannot disagree, and `--max-warnings 0` makes a warning fail the run like an error.
+
+Locally, `pnpm check` chains the first four gates (`lint` → `format:check` → `typecheck` → `test`),
+so one command mirrors CI up to the build step. CI deliberately runs them as separate steps instead
+of a single aggregated command: a red run names the gate that broke, which makes the failure
+actionable without reading the log.
 
 ## 2. Security scanning
 
