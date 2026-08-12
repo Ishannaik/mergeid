@@ -30,6 +30,7 @@ export const infoCommand = {
     .setDescription('Show information about MergeID and its GitHub repository.')
     .toJSON(),
 
+  /** Completes the deferred interaction reply with MergeID project and support links. */
   async execute(interaction) {
     await interaction.editReply({ embeds: [INFO_EMBED] });
   },
