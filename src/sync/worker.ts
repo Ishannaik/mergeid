@@ -8,14 +8,17 @@ import type { RuntimeRole } from '../lib/runtime.js';
  * in-flight jobs finish rather than killing them mid-verification — a job
  * interrupted between the GitHub check and the Discord role write is the one
  * that leaves state inconsistent.
+ *
+ * Not `async`: there is nothing to await until that wiring exists. The
+ * Promise-returning signature is the contract, so callers are unaffected.
  */
-export async function startWorker(): Promise<RuntimeRole> {
+export function startWorker(): Promise<RuntimeRole> {
   logger.debug('worker role: no queue wiring yet (#28)');
 
-  return {
+  return Promise.resolve({
     name: 'worker',
     async stop() {
       // Will become worker.close() — drains in-flight jobs.
     },
-  };
+  });
 }

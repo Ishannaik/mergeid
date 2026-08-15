@@ -1,8 +1,20 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock, type MockInstance } from 'vitest';
 import { MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 
 import { createInteractionHandler } from '../src/discord/events/interaction-create.js';
 import type { DiscordCommand } from '../src/discord/commands/index.js';
+
+/** The payloads the router hands to each response method. */
+type DeferOptions = { flags: MessageFlags };
+type EphemeralMessage = { content: string; flags: MessageFlags };
+type EditMessage = { content: string };
+
+/**
+ * The shape of a single response double. Naming the payload keeps the recorded
+ * calls typed, so `.mock` is readable without a cast and the call assertions
+ * still compare the exact object the router sent.
+ */
+type Respond<Options> = (options: Options) => Promise<unknown>;
 
 /**
  * Minimal generic interaction shape cast at the module boundary. Only the
@@ -16,10 +28,10 @@ type FauxInteraction = {
   deferred: boolean;
   readonly user: { readonly id: string };
   readonly guildId: string | null;
-  deferReply: (options: { flags: MessageFlags }) => Promise<unknown>;
-  reply: (options: { content: string; flags: MessageFlags }) => Promise<unknown>;
-  editReply: (options: { content: string }) => Promise<unknown>;
-  followUp: (options: { content: string; flags: MessageFlags }) => Promise<unknown>;
+  deferReply: Mock<Respond<DeferOptions>>;
+  reply: Mock<Respond<EphemeralMessage>>;
+  editReply: Mock<Respond<EditMessage>>;
+  followUp: Mock<Respond<EphemeralMessage>>;
 };
 
 /** Identifiers shared across fixtures so log assertions can target them. */
@@ -30,21 +42,23 @@ const ORIGINAL_ERROR = new Error('boom from command handler');
 
 const EPHEMERAL = MessageFlags.Ephemeral;
 function baseInteraction(overrides: Partial<FauxInteraction> = {}): FauxInteraction {
-  const interaction = {
+  // `deferReply` flips the fixture's own flag, the way discord.js marks an
+  // interaction deferred. The annotation is what lets the double close over the
+  // object it belongs to, so the fixture needs no cast to build itself.
+  const interaction: FauxInteraction = {
     commandName: COMMAND_NAME,
     isChatInputCommand: () => true,
     replied: false,
     deferred: false,
     user: { id: SENDER_ID },
     guildId: GUILD_ID,
-    deferReply: undefined,
-    reply: vi.fn(async () => undefined) as FauxInteraction['reply'],
-    editReply: vi.fn(async () => undefined) as FauxInteraction['editReply'],
-    followUp: vi.fn(async () => undefined) as FauxInteraction['followUp'],
-  } as unknown as FauxInteraction;
-  interaction.deferReply = vi.fn(async () => {
-    interaction.deferred = true;
-  }) as FauxInteraction['deferReply'];
+    deferReply: vi.fn<Respond<DeferOptions>>(async () => {
+      interaction.deferred = true;
+    }),
+    reply: vi.fn<Respond<EphemeralMessage>>(async () => undefined),
+    editReply: vi.fn<Respond<EditMessage>>(async () => undefined),
+    followUp: vi.fn<Respond<EphemeralMessage>>(async () => undefined),
+  };
   return Object.assign(interaction, overrides);
 }
 
@@ -54,16 +68,55 @@ function throwingCommand(): DiscordCommand {
     data: { name: COMMAND_NAME, description: 'throws', type: 1 },
     execute: vi.fn(async () => {
       throw ORIGINAL_ERROR;
-    }) as unknown as DiscordCommand['execute'],
+    }),
   };
+}
+
+/**
+ * Every line the router logs follows pino's `(bindings, message)` convention,
+ * but the logger port it depends on declares those methods as
+ * `(...args: unknown[])`. Mirroring the port exactly keeps the double
+ * substitutable and its recorded arguments `unknown`, so a payload has to be
+ * narrowed before anything reads it.
+ */
+type LogCall = (...args: unknown[]) => void;
+
+/** The bindings object a logger double was handed on its first call. */
+function firstCallBindings(method: Mock<LogCall>): unknown {
+  const [call] = method.mock.calls;
+  if (call === undefined) {
+    throw new Error('expected the logger method to have been called');
+  }
+  return call[0];
+}
+
+/**
+ * The `err` binding of a structured log payload, proven at runtime instead of
+ * asserted: a payload the router never produced fails the test here rather than
+ * quietly comparing `undefined`.
+ */
+function errBindingOf(payload: unknown): unknown {
+  if (typeof payload !== 'object' || payload === null || !('err' in payload)) {
+    throw new Error('expected the log payload to carry an err binding');
+  }
+  return payload.err;
+}
+
+/** The tick Vitest stamps on a mock's first call, for ordering comparisons. */
+function firstCallOrder(mock: MockInstance): number {
+  const [order] = mock.mock.invocationCallOrder;
+  if (order === undefined) {
+    throw new Error('expected the mock to have been called');
+  }
+  return order;
 }
 
 describe('createInteractionHandler', () => {
   const createLog = () => ({
-    warn: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
+    warn: vi.fn<LogCall>(),
+    error: vi.fn<LogCall>(),
+    info: vi.fn<LogCall>(),
+    debug: vi.fn<LogCall>(),
   });
 
   it('ignores interactions that are not chat-input commands', async () => {
@@ -103,9 +156,7 @@ describe('createInteractionHandler', () => {
     expect(execute).toHaveBeenCalledExactlyOnceWith(
       interaction as unknown as ChatInputCommandInteraction,
     );
-    expect(interaction.deferReply.mock.invocationCallOrder[0]).toBeLessThan(
-      execute.mock.invocationCallOrder[0]!,
-    );
+    expect(firstCallOrder(interaction.deferReply)).toBeLessThan(firstCallOrder(execute));
     expect(log.error).not.toHaveBeenCalled();
   });
 
@@ -123,7 +174,7 @@ describe('createInteractionHandler', () => {
     });
     expect(interaction.editReply).not.toHaveBeenCalled();
     expect(interaction.followUp).not.toHaveBeenCalled();
-    const payload = log.warn.mock.calls[0]![0];
+    const payload = firstCallBindings(log.warn);
     expect(payload).toMatchObject({
       commandName: 'nope-not-registered',
       userId: SENDER_ID,
@@ -145,13 +196,13 @@ describe('createInteractionHandler', () => {
     });
     expect(interaction.reply).not.toHaveBeenCalled();
     expect(interaction.followUp).not.toHaveBeenCalled();
-    const payload = log.error.mock.calls[0]![0];
+    const payload = firstCallBindings(log.error);
     expect(payload).toMatchObject({
       commandName: COMMAND_NAME,
       userId: SENDER_ID,
       guildId: GUILD_ID,
     });
-    expect(payload.err).toBe(ORIGINAL_ERROR);
+    expect(errBindingOf(payload)).toBe(ORIGINAL_ERROR);
   });
 
   it('uses an ephemeral followUp when a command fails after replying', async () => {
@@ -172,6 +223,6 @@ describe('createInteractionHandler', () => {
     });
     expect(interaction.editReply).not.toHaveBeenCalled();
     expect(interaction.reply).not.toHaveBeenCalled();
-    expect(log.error.mock.calls[0]![0].err).toBe(ORIGINAL_ERROR);
+    expect(errBindingOf(firstCallBindings(log.error))).toBe(ORIGINAL_ERROR);
   });
 });
