@@ -11,8 +11,10 @@
   "packageManager": "pnpm@10.27.0",
   "scripts": {
     "build": "prisma generate && tsc",
+    "dev": "tsx watch --env-file=.env --include .env src/index.ts",
     "deploy-commands": "prisma generate && tsc && node dist/discord/deploy-commands.js",
     "start": "node dist/index.js",
+    "start:local": "node --env-file=.env dist/index.js",
     "typecheck": "prisma generate && tsc --noEmit",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test",
     "lint": "eslint . --max-warnings 0",
@@ -42,6 +44,7 @@
     "globals": "^17.9.0",
     "prettier": "^3.6.0",
     "prisma": "^7.9.1",
+    "tsx": "^4.23.12",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.35.0",
     "vitest": "^4.0.0"

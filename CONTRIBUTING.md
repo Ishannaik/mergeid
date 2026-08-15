@@ -35,18 +35,43 @@ pnpm install
 cp .env.example .env   # on Windows: copy .env.example .env — then fill in the values
 ```
 
+### Local PostgreSQL and Redis
+
+Start the pinned PostgreSQL and Redis services used for local development:
+
+```bash
+docker compose -f docker/compose.dev.yaml up -d --wait
+pnpm db:deploy
+```
+
+The exposed ports and development credentials match the `DATABASE_URL` and `REDIS_URL` defaults
+in `.env.example`. Stop the services without deleting their data:
+
+```bash
+docker compose -f docker/compose.dev.yaml down
+```
+
+To also delete the local database and Redis volumes:
+
+```bash
+docker compose -f docker/compose.dev.yaml down --volumes
+```
+
 ### Scripts
 
-| Command             | Description                                  |
-| ------------------- | -------------------------------------------- |
-| `pnpm build`        | Compile TypeScript to `dist/`                |
-| `pnpm typecheck`    | Type-check without emitting files            |
-| `pnpm check`        | Run lint, format check, typecheck, and tests |
-| `pnpm lint`         | Run ESLint (warnings are errors)             |
-| `pnpm lint:fix`     | Run ESLint and apply autofixes               |
-| `pnpm format`       | Format the codebase                          |
-| `pnpm format:check` | Check formatting without writing             |
-| `pnpm test`         | Run the test suite                           |
+| Command             | Description                                       |
+| ------------------- | ------------------------------------------------- |
+| `pnpm build`        | Compile TypeScript to `dist/`                     |
+| `pnpm dev`          | Run TypeScript with `.env` and restart on changes |
+| `pnpm start`        | Run the compiled app with the process environment |
+| `pnpm start:local`  | Run the compiled app with `.env`                  |
+| `pnpm typecheck`    | Type-check without emitting files                 |
+| `pnpm check`        | Run lint, format check, typecheck, and tests      |
+| `pnpm lint`         | Run ESLint (warnings are errors)                  |
+| `pnpm lint:fix`     | Run ESLint and apply autofixes                    |
+| `pnpm format`       | Format the codebase                               |
+| `pnpm format:check` | Check formatting without writing                  |
+| `pnpm test`         | Run the test suite                                |
 
 Run `pnpm check` before pushing; `pnpm lint:fix` and `pnpm format` fix most of
 what it reports.

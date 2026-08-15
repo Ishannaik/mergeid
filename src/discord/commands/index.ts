@@ -3,6 +3,8 @@ import type {
   RESTPostAPIApplicationCommandsJSONBody,
 } from 'discord.js';
 
+import { infoCommand } from './info.js';
+
 /**
  * A single slash command: the raw REST body Discord registers, plus the
  * handler the interaction router dispatches to.
@@ -24,9 +26,8 @@ export interface DiscordCommand {
  * The shared command registry — the single source of truth for both
  * deployment and dispatch.
  *
- * Intentionally empty: #7 lands the client bootstrap and interaction
- * framework only. The concrete commands arrive with their own issues and are
- * appended here, at which point they become deployable and dispatchable
- * without touching either the deployer or the router.
+ * Adding a command here makes the same definition available to both REST
+ * deployment and interaction dispatch, preventing the two surfaces from
+ * drifting apart.
  */
-export const commands: readonly DiscordCommand[] = [];
+export const commands: readonly DiscordCommand[] = [infoCommand];
