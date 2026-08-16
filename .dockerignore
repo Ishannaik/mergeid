@@ -1,0 +1,37 @@
+# Version control and CI metadata
+.git
+.github
+
+# Dependencies, build products, and generated code
+node_modules
+.pnpm-store
+dist
+src/generated
+*.tsbuildinfo
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Tests and documentation
+test
+tests
+docs
+*.md
+
+# Editor, coverage, and log artifacts
+.idea
+.vscode
+*.swp
+*.swo
+*~
+coverage
+.nyc_output
+*.log
+
+# Development-only container assets
+docker/compose.dev.yaml
+docker/compose.prod.yml
