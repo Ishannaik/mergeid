@@ -1,5 +1,11 @@
 name: mergeid-prod
 
+# Set DATABASE_URL yourself when POSTGRES_USER/POSTGRES_PASSWORD contain characters
+# that are reserved in a URI (@ : / ? # %). The composed default below inserts them
+# verbatim, which would not survive URL parsing.
+x-database-url: &database-url
+  DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-mergeid}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-mergeid}}
+
 services:
   postgres:
     image: postgres:17.6-alpine
@@ -33,8 +39,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       target: migrate
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-mergeid}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-mergeid}
+    environment: *database-url
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,7 +51,7 @@ services:
       dockerfile: docker/Dockerfile
       target: runtime
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-mergeid}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-mergeid}
+      <<: *database-url
       REDIS_URL: redis://redis:6379
       DISCORD_TOKEN: ${DISCORD_TOKEN:?DISCORD_TOKEN is required}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?DISCORD_CLIENT_ID is required}

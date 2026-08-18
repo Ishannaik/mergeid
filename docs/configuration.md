@@ -28,6 +28,33 @@ or malformed configuration, with a precise error naming the offending variable. 
 does not auto-load `.env`; MergeID loads environment explicitly at boot before initializing the
 database client.
 
+### Container stack variables
+
+[`docker/compose.prod.yml`](../docker/compose.prod.yml) provisions PostgreSQL itself and reads
+three extra variables that the application never sees:
+
+| Variable            | Required | Description                       |
+| ------------------- | -------- | --------------------------------- |
+| `POSTGRES_DB`       | no       | Database name. Default `mergeid`. |
+| `POSTGRES_USER`     | no       | Database user. Default `mergeid`. |
+| `POSTGRES_PASSWORD` | yes      | Database password. No default.    |
+
+By default the compose file builds `DATABASE_URL` for the `migrate` and `bot` services from those
+three values. They are inserted verbatim, so a user or password containing a character that is
+reserved in a URI — `@`, `:`, `/`, `?`, `#`, `%` — produces a connection string Prisma parses
+differently from what PostgreSQL was configured with, and `pnpm db:deploy` fails to authenticate.
+Because `bot` waits on `service_completed_successfully`, the bot never starts.
+
+Either keep the credentials free of those characters, or set `DATABASE_URL` explicitly with the
+credentials percent-encoded — an explicit value overrides the composed default:
+
+```sh
+# POSTGRES_USER=us@r, POSTGRES_PASSWORD=p@ss/word
+DATABASE_URL=postgresql://us%40r:p%40ss%2Fword@postgres:5432/mergeid
+```
+
+Note the host is `postgres` (the compose service name), not `localhost`.
+
 ## 2. Discord application setup
 
 1. <https://discord.com/developers/applications> → **New Application** → name it.
