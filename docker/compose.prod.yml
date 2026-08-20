@@ -6,6 +6,12 @@ name: mergeid-prod
 x-database-url: &database-url
   DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-mergeid}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-mergeid}}
 
+# Redis requires a password (see the redis service below), so the URL carries one.
+# Same URI-encoding caveat as DATABASE_URL: set REDIS_URL yourself if the password
+# contains @ : / ? # %.
+x-redis-url: &redis-url
+  REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379}
+
 services:
   postgres:
     image: postgres:17.6-alpine
@@ -24,11 +30,17 @@ services:
 
   redis:
     image: redis:8.2.1-alpine
-    command: ['redis-server', '--appendonly', 'yes']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    # Password comes from the environment rather than an inline argument so it
+    # does not show up in `ps` inside the container. The AOF file on the named
+    # volume holds queue payloads, so an unauthenticated Redis would expose them
+    # to anything else sharing a Docker network with this stack.
+    command: ['sh', '-c', 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ['CMD-SHELL', 'redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -51,8 +63,7 @@ services:
       dockerfile: docker/Dockerfile
       target: runtime
     environment:
-      <<: *database-url
-      REDIS_URL: redis://redis:6379
+      <<: [*database-url, *redis-url]
       DISCORD_TOKEN: ${DISCORD_TOKEN:?DISCORD_TOKEN is required}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?DISCORD_CLIENT_ID is required}
       DISCORD_DEV_GUILD_ID: ${DISCORD_DEV_GUILD_ID:-}
@@ -65,7 +76,13 @@ services:
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?TOKEN_ENCRYPTION_KEY is required}
       NODE_ENV: ${NODE_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      MERGEID_ROLES: ${MERGEID_ROLES:-bot}
+      MERGEID_ROLES: ${MERGEID_ROLES:-bot,api,worker}
+    # GitHub redirects the user's browser to OAUTH_REDIRECT_URI, so the api role's
+    # listener has to be reachable from outside this network. Published on all
+    # interfaces by default; set HTTP_BIND_HOST=127.0.0.1 when a reverse proxy on
+    # the same host terminates TLS and forwards to it.
+    ports:
+      - '${HTTP_BIND_HOST:-0.0.0.0}:${HTTP_PUBLISHED_PORT:-${PORT:-3000}}:${PORT:-3000}'
     depends_on:
       postgres:
         condition: service_healthy

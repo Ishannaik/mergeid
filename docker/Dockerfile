@@ -1,16 +1,27 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24-bookworm-slim AS base
+# Everything the app needs at run time and nothing else. Prisma 7 reaches
+# PostgreSQL through the pure-JS @prisma/adapter-pg driver adapter, so it no
+# longer links libssl the way the old Rust query engine did — but `prisma
+# migrate` still drives the schema engine, and a runtime without openssl breaks
+# the moment that assumption changes. Cheap layer, whole class of "worked in the
+# build stage" failures gone.
+FROM node:24-bookworm-slim AS runtime-base
 
 WORKDIR /app
-
-ENV PNPM_HOME=/pnpm
-ENV PATH=${PNPM_HOME}:${PATH}
-ENV COREPACK_HOME=/corepack
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl \
     && rm -rf /var/lib/apt/lists/*
+
+# Adds the toolchain the build and migrate stages need. The final runtime stage
+# deliberately does not inherit this: pnpm and corepack are build tooling and
+# have no business in a production image.
+FROM runtime-base AS base
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=${PNPM_HOME}:${PATH}
+ENV COREPACK_HOME=/corepack
 
 RUN corepack enable \
     && corepack prepare pnpm@10.27.0 --activate \
@@ -41,9 +52,7 @@ USER node
 
 CMD ["pnpm", "db:deploy"]
 
-FROM node:24-bookworm-slim AS runtime
-
-WORKDIR /app
+FROM runtime-base AS runtime
 
 ENV NODE_ENV=production
 

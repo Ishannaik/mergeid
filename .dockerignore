@@ -16,11 +16,13 @@ src/generated
 *.pem
 *.key
 
-# Tests and documentation
+# Tests and documentation. README/LICENSE stay in the image so it carries its
+# own provenance (LICENSE has no extension, so *.md never matched it).
 test
 tests
 docs
 *.md
+!README.md
 
 # Editor, coverage, and log artifacts
 .idea
@@ -32,6 +34,6 @@ coverage
 .nyc_output
 *.log
 
-# Development-only container assets
+# Compose files orchestrate the image; they are never needed inside it
 docker/compose.dev.yaml
 docker/compose.prod.yml

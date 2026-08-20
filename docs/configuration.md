@@ -30,30 +30,61 @@ database client.
 
 ### Container stack variables
 
-[`docker/compose.prod.yml`](../docker/compose.prod.yml) provisions PostgreSQL itself and reads
-three extra variables that the application never sees:
+[`docker/compose.prod.yml`](../docker/compose.prod.yml) provisions PostgreSQL and Redis itself and
+reads extra variables that the application never sees:
 
-| Variable            | Required | Description                       |
-| ------------------- | -------- | --------------------------------- |
-| `POSTGRES_DB`       | no       | Database name. Default `mergeid`. |
-| `POSTGRES_USER`     | no       | Database user. Default `mergeid`. |
-| `POSTGRES_PASSWORD` | yes      | Database password. No default.    |
+| Variable              | Required | Description                                                                  |
+| --------------------- | -------- | ---------------------------------------------------------------------------- |
+| `POSTGRES_DB`         | no       | Database name. Default `mergeid`.                                            |
+| `POSTGRES_USER`       | no       | Database user. Default `mergeid`.                                            |
+| `POSTGRES_PASSWORD`   | yes      | Database password. No default.                                               |
+| `REDIS_PASSWORD`      | yes      | Redis password (`requirepass`). No default.                                  |
+| `HTTP_BIND_HOST`      | no       | Host interface the bot's HTTP port publishes on. Default `0.0.0.0`.          |
+| `HTTP_PUBLISHED_PORT` | no       | Host port mapped to the container's `PORT`. Defaults to the value of `PORT`. |
 
-By default the compose file builds `DATABASE_URL` for the `migrate` and `bot` services from those
-three values. They are inserted verbatim, so a user or password containing a character that is
-reserved in a URI — `@`, `:`, `/`, `?`, `#`, `%` — produces a connection string Prisma parses
-differently from what PostgreSQL was configured with, and `pnpm db:deploy` fails to authenticate.
-Because `bot` waits on `service_completed_successfully`, the bot never starts.
+By default the compose file builds `DATABASE_URL` and `REDIS_URL` for the `migrate` and `bot`
+services from those values. They are inserted verbatim, so a user or password containing a
+character that is reserved in a URI — `@`, `:`, `/`, `?`, `#`, `%` — produces a connection string
+Prisma parses differently from what PostgreSQL was configured with, and `pnpm db:deploy` fails to
+authenticate. Because `bot` waits on `service_completed_successfully`, the bot never starts.
 
-Either keep the credentials free of those characters, or set `DATABASE_URL` explicitly with the
-credentials percent-encoded — an explicit value overrides the composed default:
+Either keep the credentials free of those characters, or set `DATABASE_URL` / `REDIS_URL`
+explicitly with the credentials percent-encoded — an explicit value overrides the composed default:
 
 ```sh
 # POSTGRES_USER=us@r, POSTGRES_PASSWORD=p@ss/word
 DATABASE_URL=postgresql://us%40r:p%40ss%2Fword@postgres:5432/mergeid
+REDIS_URL=redis://:p%40ss%2Fword@redis:6379
 ```
 
-Note the host is `postgres` (the compose service name), not `localhost`.
+Note the hosts are `postgres` and `redis` (the compose service names), not `localhost`.
+
+### Exposing the OAuth callback
+
+GitHub redirects the user's browser to `OAUTH_REDIRECT_URI`, so the `api` role's listener has to be
+reachable from the public internet. The `bot` service publishes its port on all interfaces by
+default, which is the working configuration when the host itself is the public endpoint and TLS is
+terminated upstream.
+
+When a reverse proxy on the same host terminates TLS and forwards to the bot, keep the port off the
+public interface:
+
+```sh
+HTTP_BIND_HOST=127.0.0.1
+HTTP_PUBLISHED_PORT=3000
+```
+
+`PUBLIC_BASE_URL` and `OAUTH_REDIRECT_URI` must always name the **public** HTTPS origin, not the
+published host port — they are what GitHub sees.
+
+### Redis exposure
+
+Redis is not published to the host, so it is reachable only from this compose project's network.
+It nevertheless runs with `requirepass`: the AOF file on the `redis-data` volume holds queue
+payloads, and on a host running other compose stacks an unauthenticated Redis is one shared network
+away from anything else on the box. The healthcheck authenticates with the same password, so a
+missing or wrong `REDIS_PASSWORD` fails the container's health gate rather than silently starting
+an open instance.
 
 ## 2. Discord application setup
 
