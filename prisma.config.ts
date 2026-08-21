@@ -23,5 +23,8 @@ export default defineConfig({
   // need a connection still fail with their own clear error.
   datasource: {
     url: process.env.DATABASE_URL,
+    // Migrate needs a scratch DB to replay migrations for diffing. Local dev
+    // only; CI supplies its own or skips migration commands.
+    shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
   },
 });

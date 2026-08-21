@@ -13,6 +13,7 @@ datasource db {
 }
 
 enum RuleKind {
+  @@map("VerificationRuleKind")
   ORG
   REPO
   TEAM
@@ -25,6 +26,7 @@ enum MembershipStatus {
 }
 
 enum SyncStatus {
+  @@map("SyncRunStatus")
   OK
   PARTIAL
   FAILED
@@ -88,6 +90,7 @@ model VerificationRule {
   requiredScopes String   @map("required_scopes")
   enabled        Boolean  @default(true)
   createdBy      String   @map("created_by")
+  createdAt      DateTime @map("created_at") @db.Timestamptz(6)
 
   guild             Guild              @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
   membershipResults MembershipResult[]
@@ -149,14 +152,16 @@ model RoleGrant {
 
 model AuditEvent {
   id             String   @id @default(uuid()) @db.Uuid
-  guildId        String   @map("guild_id")
-  actorDiscordId String   @map("actor_discord_id")
+  // Nullable context: link/unlink events happen during OAuth with no guild,
+  // so rows can exist before the actor shares a guild with the bot.
+  guildId        String?  @map("guild_id")
+  actorDiscordId String?  @map("actor_discord_id")
   action         String
-  subject        String
+  subject        String?
   meta           Json     @default("{}")
   at             DateTime @default(now()) @db.Timestamptz(6)
 
-  guild Guild @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  guild Guild? @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
 
   @@index([guildId, at(sort: Desc)])
   @@map("audit_events")

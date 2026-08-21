@@ -1,143 +1,127 @@
-// Entry: bootstraps runtime roles from MERGEID_ROLES (see docs/architecture.md §4).
-//
-// Each role currently starts as a no-op that reports ready and registers a
-// shutdown hook. The real implementations land in their own issues:
-//   bot    → #7  (Discord client bootstrap + interaction framework)
-//   api    → #10 (Fastify server + GET /oauth/callback)
-//   worker → #28 (BullMQ worker + queue wiring)
-
-import { startApi } from './api/server.js';
-import { startBot } from './discord/client.js';
-import { logger } from './lib/logger.js';
-import { startWorker } from './sync/worker.js';
-import type { RuntimeRole } from './lib/runtime.js';
-
-const ROLE_STARTERS = {
-  bot: startBot,
-  api: startApi,
-  worker: startWorker,
-} as const;
-
-type RoleName = keyof typeof ROLE_STARTERS;
-
-const ALL_ROLES = Object.keys(ROLE_STARTERS) as RoleName[];
-
-/** Milliseconds a graceful shutdown may take before the process exits anyway. */
-const SHUTDOWN_TIMEOUT_MS = 10_000;
-
 /**
- * Parses MERGEID_ROLES into a deduplicated, ordered role list.
+ * Process entrypoint.
  *
- * Deliberately minimal: full env parsing and validation is #2. This reads the
- * one variable the entrypoint cannot boot without.
+ * Boots runtime roles listed in MERGEID_ROLES (docs/architecture.md §4).
+ * Phase-1 MVP runs bot + api (+ deferred worker) in one process.
  */
-export function parseRoles(raw: string | undefined): RoleName[] {
-  const requested = (raw ?? ALL_ROLES.join(','))
-    .split(',')
-    .map((value) => value.trim().toLowerCase())
-    .filter((value) => value.length > 0);
 
-  if (requested.length === 0) {
-    throw new Error('MERGEID_ROLES is empty. Expected a subset of: bot, api, worker.');
-  }
+import { loadConfig, loadDotenv } from './config/index.js';
+import { createLogger } from './lib/logger.js';
+import { createPrismaClient } from './lib/prisma.js';
+import { createRedisClient } from './lib/redis.js';
+import { createRedisOAuthStateStore } from './oauth/index.js';
+import { createLinkService, createRulesService } from './services/index.js';
+import { createLinkedRoleService } from './discord/roles.js';
+import { createRuleRoleService } from './discord/rule-roles.js';
+import { createVerificationEngine } from './verification/engine.js';
+import type { RuntimeRole } from './config/index.js';
+import type { Client } from 'discord.js';
 
-  const unknown = requested.filter(
-    (value): value is string => !ALL_ROLES.includes(value as RoleName),
-  );
-  if (unknown.length > 0) {
-    throw new Error(
-      `MERGEID_ROLES contains unknown role(s): ${unknown.join(', ')}. Expected a subset of: ${ALL_ROLES.join(', ')}.`,
+async function main(): Promise<void> {
+  loadDotenv();
+  const config = loadConfig();
+  const logger = createLogger(config);
+
+  const roles = new Set<RuntimeRole>(config.MERGEID_ROLES);
+  logger.info({ roles: [...roles] }, 'starting mergeid');
+
+  const needsDataPlane = roles.has('api') || roles.has('bot');
+  const prisma = needsDataPlane ? createPrismaClient(config) : null;
+  const redis = needsDataPlane ? createRedisClient(config, logger) : null;
+  const oauthState = redis ? createRedisOAuthStateStore(redis) : null;
+  const links = prisma && logger ? createLinkService({ prisma, config, logger }) : null;
+  const rules = prisma && logger ? createRulesService({ prisma, logger }) : null;
+
+  // Late-bound: the api role starts before the gateway client exists, and the
+  // OAuth callback (api) is what applies the role after a link completes. The
+  // holder is assigned when the bot role boots below; a link cannot complete
+  // before then, because the authorize URL is handed out by the bot itself.
+  let botClient: Client | null = null;
+  const linkedRoles = createLinkedRoleService({
+    config,
+    logger,
+    getClient: () => botClient,
+  });
+  const ruleRoles = createRuleRoleService({
+    logger,
+    getClient: () => botClient,
+  });
+  const engine =
+    prisma && rules && config && logger
+      ? createVerificationEngine({ prisma, config, logger, rules, roles: ruleRoles })
+      : null;
+
+  if (config.MERGEID_LINKED_ROLE_ID && !roles.has('bot')) {
+    logger.warn(
+      { roleId: config.MERGEID_LINKED_ROLE_ID },
+      'MERGEID_LINKED_ROLE_ID is set but this process does not run the bot role; ' +
+        'role grants will be skipped here — run the bot and api roles together, ' +
+        'or the linked role will never be applied',
     );
   }
 
-  // Preserve ALL_ROLES order so startup and shutdown ordering are deterministic
-  // regardless of how the operator ordered the env var.
-  return ALL_ROLES.filter((role) => requested.includes(role));
-}
+  const shutdownHandlers: Array<() => Promise<void>> = [];
 
-async function stopAll(started: RuntimeRole[]): Promise<void> {
-  // Reverse order: the worker drains before the datastores it depends on go away.
-  for (const role of [...started].reverse()) {
-    try {
-      await role.stop();
-      logger.info({ role: role.name }, 'role stopped');
-    } catch (error) {
-      logger.error({ role: role.name, err: error }, 'role failed to stop cleanly');
+  if (roles.has('api')) {
+    if (!oauthState || !links) {
+      throw new Error('api role requires database and redis');
     }
+    const { startApi } = await import('./api/server.js');
+    const api = await startApi({
+      config,
+      logger,
+      oauthState,
+      links,
+      linkedRoles,
+      engine,
+    });
+    shutdownHandlers.push(api.stop);
   }
-}
 
-async function main(): Promise<void> {
-  const roles = parseRoles(process.env.MERGEID_ROLES);
-  logger.info({ roles }, 'starting mergeid');
-
-  const started: RuntimeRole[] = [];
-  let shuttingDown = false;
-  // Remembers the code the first shutdown reason asked for, so a signal
-  // arriving mid-cleanup cannot downgrade a fatal exit to a clean one.
-  let pendingExitCode = 0;
-
-  // Holds the event loop open. A process signal listener does not keep Node
-  // alive on its own, and the no-op roles own no handles yet — without this the
-  // process reaches "ready" and immediately exits 0, so shutdown never runs.
-  // Real roles bring their own refed handles (gateway socket, HTTP listener,
-  // queue worker); drop this once one of them does.
-  const keepAlive = setInterval(() => {}, 1 << 30);
-
-  const shutdown = async (reason: string, exitCode: number): Promise<void> => {
-    if (shuttingDown) {
-      // A second signal means the operator is out of patience. Keep whichever
-      // code reports failure: a crash already under cleanup must not be
-      // recorded as a clean stop just because SIGTERM landed on top of it.
-      const finalCode = pendingExitCode || exitCode;
-      logger.warn({ reason, exitCode: finalCode }, 'shutdown already in progress, forcing exit');
-      process.exit(finalCode);
+  if (roles.has('bot')) {
+    if (!oauthState || !links || !rules || !engine) {
+      throw new Error('bot role requires database, redis, rules, and verification engine');
     }
-    shuttingDown = true;
-    pendingExitCode = exitCode;
-    clearInterval(keepAlive);
-    logger.info({ reason }, 'shutting down');
+    const { startBot } = await import('./discord/client.js');
+    const bot = await startBot({ config, logger, oauthState, links, linkedRoles, rules, engine });
+    botClient = bot.client;
+    shutdownHandlers.push(bot.stop);
+  }
 
-    const timer = setTimeout(() => {
-      logger.error({ timeoutMs: SHUTDOWN_TIMEOUT_MS }, 'graceful shutdown timed out, forcing exit');
-      process.exit(1);
-    }, SHUTDOWN_TIMEOUT_MS);
-    timer.unref();
+  if (roles.has('worker')) {
+    logger.warn('worker role requested but not implemented until M5; ignoring');
+  }
 
-    await stopAll(started);
-    clearTimeout(timer);
-    process.exit(exitCode);
+  shutdownHandlers.push(async () => {
+    if (redis) {
+      redis.disconnect();
+    }
+    if (prisma) {
+      await prisma.$disconnect();
+    }
+  });
+
+  const shutdown = async (signal: string) => {
+    logger.info({ signal }, 'shutting down');
+    for (const stop of shutdownHandlers.reverse()) {
+      try {
+        await stop();
+      } catch (err) {
+        logger.error({ err }, 'error during shutdown');
+      }
+    }
+    process.exit(0);
   };
 
-  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-    process.on(signal, () => {
-      void shutdown(signal, 0);
-    });
-  }
-
-  process.on('unhandledRejection', (error) => {
-    logger.fatal({ err: error }, 'unhandled rejection');
-    void shutdown('unhandledRejection', 1);
+  process.once('SIGINT', () => {
+    void shutdown('SIGINT');
   });
-
-  process.on('uncaughtException', (error) => {
-    logger.fatal({ err: error }, 'uncaught exception');
-    void shutdown('uncaughtException', 1);
+  process.once('SIGTERM', () => {
+    void shutdown('SIGTERM');
   });
-
-  try {
-    for (const role of roles) {
-      started.push(await ROLE_STARTERS[role]());
-      logger.info({ role }, 'role ready');
-    }
-  } catch (error) {
-    // A half-started process is worse than a stopped one: unwind what booted.
-    logger.fatal({ err: error }, 'startup failed');
-    await stopAll(started);
-    process.exit(1);
-  }
-
-  logger.info({ roles }, 'mergeid ready');
 }
 
-await main();
+main().catch((err: unknown) => {
+  console.error('fatal: failed to start mergeid', err);
+  process.exit(1);
+});

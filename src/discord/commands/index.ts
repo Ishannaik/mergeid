@@ -1,32 +1,59 @@
-import type {
-  ChatInputCommandInteraction,
-  RESTPostAPIApplicationCommandsJSONBody,
-} from 'discord.js';
+import { MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 
-/**
- * A single slash command: the raw REST body Discord registers, plus the
- * handler the interaction router dispatches to.
- *
- * `data` is the already-serialised body (`SlashCommandBuilder.toJSON()`), which
- * is exactly what `deployCommands` bulk-PUTs, so the deployed surface and the
- * dispatch table can never drift apart.
- *
- * The router defers every known command ephemerally before dispatch. Handlers
- * complete that private initial response with `editReply` and may use
- * `followUp` only for additional messages.
- */
-export interface DiscordCommand {
-  readonly data: RESTPostAPIApplicationCommandsJSONBody;
-  execute(interaction: ChatInputCommandInteraction): Promise<void>;
+import { linkCommandData, executeLink } from './link.js';
+import { unlinkCommandData, executeUnlink } from './unlink.js';
+import { statusCommandData, executeStatus } from './status.js';
+import { verifyCommandData, executeVerify } from './verify.js';
+import { mergeidCommandData, executeMergeid } from './mergeid.js';
+import type { LinkedRoleService } from '../roles.js';
+import type { Config } from '../../config/index.js';
+import type { Logger } from '../../lib/logger.js';
+import type { OAuthStateStore } from '../../oauth/index.js';
+import type { LinkService, RulesService } from '../../services/index.js';
+import type { VerificationEngine } from '../../verification/engine.js';
+
+export const commandData = [
+  linkCommandData,
+  unlinkCommandData,
+  statusCommandData,
+  verifyCommandData,
+  mergeidCommandData,
+];
+
+export type CommandDeps = {
+  config: Config;
+  logger: Logger;
+  oauthState: OAuthStateStore;
+  links: LinkService;
+  linkedRoles: LinkedRoleService;
+  rules: RulesService;
+  engine: VerificationEngine;
+};
+
+export async function handleChatCommand(
+  interaction: ChatInputCommandInteraction,
+  deps: CommandDeps,
+): Promise<void> {
+  switch (interaction.commandName) {
+    case 'link':
+      await executeLink(interaction, deps);
+      break;
+    case 'unlink':
+      await executeUnlink(interaction, deps);
+      break;
+    case 'status':
+      await executeStatus(interaction, deps);
+      break;
+    case 'verify':
+      await executeVerify(interaction, deps);
+      break;
+    case 'mergeid':
+      await executeMergeid(interaction, deps);
+      break;
+    default:
+      await interaction.reply({
+        content: 'Unknown command.',
+        flags: MessageFlags.Ephemeral,
+      });
+  }
 }
-
-/**
- * The shared command registry — the single source of truth for both
- * deployment and dispatch.
- *
- * Intentionally empty: #7 lands the client bootstrap and interaction
- * framework only. The concrete commands arrive with their own issues and are
- * appended here, at which point they become deployable and dispatchable
- * without touching either the deployer or the router.
- */
-export const commands: readonly DiscordCommand[] = [];

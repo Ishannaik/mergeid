@@ -23,7 +23,7 @@ import {
   checkRepoPushAccess,
   checkTeamMembership,
 } from '../github/membership.js';
-import { MembershipStatus, VerificationRuleKind } from '../generated/prisma/enums.js';
+import { MembershipStatus, RuleKind } from '../generated/prisma/enums.js';
 import type { PrismaClient } from '../lib/prisma.js';
 import type { Logger } from '../lib/logger.js';
 import type { Config } from '../config/index.js';
@@ -84,7 +84,7 @@ export function createVerificationEngine(deps: {
 
   async function evaluateRule(input: {
     ruleId: string;
-    kind: VerificationRuleKind;
+    kind: RuleKind;
     org: string;
     repo: string | null;
     teamSlug: string | null;
@@ -108,7 +108,7 @@ export function createVerificationEngine(deps: {
 
     try {
       switch (input.kind) {
-        case VerificationRuleKind.ORG: {
+        case RuleKind.ORG: {
           const result = await checkOrgMembership(input.octokit, input.org);
           return {
             ruleId: input.ruleId,
@@ -117,7 +117,7 @@ export function createVerificationEngine(deps: {
             detail: result.detail,
           };
         }
-        case VerificationRuleKind.REPO: {
+        case RuleKind.REPO: {
           if (!input.repo) {
             return { ruleId: input.ruleId, roleId: '', status: MembershipStatus.ERROR, detail: 'repo missing on REPO rule' };
           }
@@ -129,7 +129,7 @@ export function createVerificationEngine(deps: {
             detail: result.detail,
           };
         }
-        case VerificationRuleKind.TEAM: {
+        case RuleKind.TEAM: {
           if (!input.teamSlug) {
             return { ruleId: input.ruleId, roleId: '', status: MembershipStatus.ERROR, detail: 'team slug missing on TEAM rule' };
           }
