@@ -2,7 +2,7 @@
   "name": "mergeid",
   "version": "0.0.0",
   "private": true,
-  "description": "MergeID — Discord bot that securely links and verifies GitHub accounts with Discord accounts.",
+  "description": "MergeID \u2014 Discord bot that securely links and verifies GitHub accounts with Discord accounts.",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -11,11 +11,14 @@
   "packageManager": "pnpm@10.27.0",
   "scripts": {
     "build": "prisma generate && tsc",
+    "dev": "tsx watch --env-file=.env --include .env src/index.ts",
     "deploy-commands": "prisma generate && tsc && node dist/discord/deploy-commands.js",
     "start": "node dist/index.js",
+    "start:local": "node --env-file=.env dist/index.js",
     "typecheck": "prisma generate && tsc --noEmit",
-    "check": "pnpm lint && pnpm typecheck && pnpm test",
-    "lint": "eslint .",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "prisma generate && vitest run",
@@ -34,29 +37,30 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.2.0",
     "@types/pg": "^8.20.4",
-    "eslint": "^10.0.0",
+    "eslint": "^10.8.1",
     "eslint-config-prettier": "^10.1.0",
     "globals": "^17.9.0",
     "prettier": "^3.6.0",
     "prisma": "^7.9.1",
+    "tsx": "^4.23.12",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.35.0",
     "vitest": "^4.0.0"
   },
   "dependencies": {
-    "@octokit/rest": "^22.0.1",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
-    "bullmq": "^6.0.8",
+    "bullmq": "^6.0.9",
     "discord.js": "^14.27.0",
-    "dotenv": "^17.4.2",
-    "fastify": "^5.11.2",
+    "fastify": "^5.11.3",
     "ioredis": "^6.0.0",
     "octokit": "^5.0.5",
     "pg": "^8.22.0",
     "pino": "^10.3.1",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "@octokit/rest": "^22.0.1",
+    "dotenv": "^17.4.2"
   }
 }

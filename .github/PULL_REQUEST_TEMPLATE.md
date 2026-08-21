@@ -18,6 +18,6 @@ Closes #N
 ## Checklist
 
 - [ ] PR title follows [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, ...)
-- [ ] `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass
+- [ ] `pnpm check` passes (lint, format check, typecheck, tests)
 - [ ] Tests added where relevant
 - [ ] Documentation updated if the change is user-facing
