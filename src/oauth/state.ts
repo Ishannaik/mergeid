@@ -62,7 +62,9 @@ export function createMemoryOAuthStateStore(options?: {
   const map = new Map<string, MemoryEntry>();
 
   return {
-    async issue(input) {
+    // Async signatures are the store contract (Redis backend awaits I/O);
+    // the memory backend resolves synchronously via Promise.resolve.
+    issue: (input) => {
       const codeVerifier = input.codeVerifier ?? generateCodeVerifier();
       const state = generateOAuthState();
       map.set(state, {
@@ -73,23 +75,27 @@ export function createMemoryOAuthStateStore(options?: {
         },
         expiresAtMs: now() + ttlSeconds * 1000,
       });
-      return {
+      return Promise.resolve({
         state,
         codeChallenge: createCodeChallenge(codeVerifier),
-        codeChallengeMethod: 'S256',
-      };
+        codeChallengeMethod: 'S256' as const,
+      });
     },
 
-    async consume(state) {
+    consume: (state) => {
       const entry = map.get(state);
       map.delete(state);
       if (!entry) {
-        throw new OAuthStateError('OAuth state is invalid, expired, or already used');
+        return Promise.reject(
+          new OAuthStateError('OAuth state is invalid, expired, or already used'),
+        );
       }
       if (now() > entry.expiresAtMs) {
-        throw new OAuthStateError('OAuth state is invalid, expired, or already used');
+        return Promise.reject(
+          new OAuthStateError('OAuth state is invalid, expired, or already used'),
+        );
       }
-      return entry.record;
+      return Promise.resolve(entry.record);
     },
   };
 }

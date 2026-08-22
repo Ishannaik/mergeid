@@ -197,7 +197,7 @@ export function createRuleSyncProcessor(deps: SyncWorkerDeps) {
  *
  * `stop()` is idempotent and never throws — the RuntimeRole contract.
  */
-export async function startWorker(deps: SyncWorkerDeps): Promise<RuntimeRole> {
+export function startWorker(deps: SyncWorkerDeps): Promise<RuntimeRole> {
   const worker = new Worker<RuleSyncJob>(SYNC_QUEUE_NAME, createRuleSyncProcessor(deps), {
     ...syncQueueOptions(),
     // Verification involves GitHub round-trips; a stalled check at 30s
@@ -214,10 +214,11 @@ export async function startWorker(deps: SyncWorkerDeps): Promise<RuntimeRole> {
     );
   });
 
-  return {
+  const role: RuntimeRole = {
     name: 'worker',
     stop: async () => {
       await worker.close();
     },
   };
+  return Promise.resolve(role);
 }

@@ -21,12 +21,7 @@ import { buildAuthorizeUrl } from '../../src/github/oauth.js';
 import { createTokenCrypto } from '../../src/crypto/index.js';
 import { createVerificationEngine } from '../../src/verification/engine.js';
 import { createLinkedRoleService } from '../../src/discord/roles.js';
-import {
-  makeClient,
-  makeGuild,
-  makeLogger,
-  makeRole,
-} from '../discord/fixtures.js';
+import { makeClient, makeGuild, makeLogger, makeRole } from '../discord/fixtures.js';
 import type { Config } from '../../src/config/index.js';
 import type { PrismaClient } from '../../src/lib/prisma.js';
 import type { RulesService } from '../../src/services/rules.js';
@@ -85,17 +80,26 @@ function makePrisma() {
 
   return {
     guild: {
-      findUnique: vi.fn(async ({ where }: { where: { guildId: string } }) =>
-        guilds.get(where.guildId) ?? null,
+      findUnique: vi.fn(
+        async ({ where }: { where: { guildId: string } }) => guilds.get(where.guildId) ?? null,
       ),
-      upsert: vi.fn(async ({ where, create }: { where: { guildId: string }; create: Record<string, unknown> }) => {
-        guilds.set(where.guildId, { ...(guilds.get(where.guildId) ?? {}), ...create } as never);
-        return guilds.get(where.guildId);
-      }),
+      upsert: vi.fn(
+        async ({
+          where,
+          create,
+        }: {
+          where: { guildId: string };
+          create: Record<string, unknown>;
+        }) => {
+          guilds.set(where.guildId, { ...(guilds.get(where.guildId) ?? {}), ...create } as never);
+          return guilds.get(where.guildId);
+        },
+      ),
     },
     githubLink: {
-      findUnique: vi.fn(async ({ where }: { where: { discordUserId: string } }) =>
-        links.get(where.discordUserId) ?? null,
+      findUnique: vi.fn(
+        async ({ where }: { where: { discordUserId: string } }) =>
+          links.get(where.discordUserId) ?? null,
       ),
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
         const row = { id: `link-${links.size + 1}`, createdAt: new Date(), ...data };
@@ -110,22 +114,40 @@ function makePrisma() {
       ),
     },
     membershipResult: {
-      upsert: vi.fn(async ({ where, create, update }: { where: { linkId_ruleId: { linkId: string; ruleId: string } }; create: Record<string, unknown>; update: Record<string, unknown> }) => {
-        const key = `${where.linkId_ruleId.linkId}:${where.linkId_ruleId.ruleId}`;
-        const existing = results.get(key);
-        const row = existing ? { ...existing, ...update as object } : { ...create, ...{} };
-        results.set(key, row);
-        return row;
-      }),
+      upsert: vi.fn(
+        async ({
+          where,
+          create,
+          update,
+        }: {
+          where: { linkId_ruleId: { linkId: string; ruleId: string } };
+          create: Record<string, unknown>;
+          update: Record<string, unknown>;
+        }) => {
+          const key = `${where.linkId_ruleId.linkId}:${where.linkId_ruleId.ruleId}`;
+          const existing = results.get(key);
+          const row = existing ? { ...existing, ...(update as object) } : { ...create, ...{} };
+          results.set(key, row);
+          return row;
+        },
+      ),
     },
     roleGrant: {
       findMany: vi.fn(async () => [...grants.values()]),
-      upsert: vi.fn(async ({ where, create }: { where: { guildId_discordUserId_roleId: { roleId: string } }; create: Record<string, unknown> }) => {
-        const key = `${where.guildId_discordUserId_roleId.roleId}`;
-        const row = { ...create };
-        grants.set(key, row);
-        return row;
-      }),
+      upsert: vi.fn(
+        async ({
+          where,
+          create,
+        }: {
+          where: { guildId_discordUserId_roleId: { roleId: string } };
+          create: Record<string, unknown>;
+        }) => {
+          const key = `${where.guildId_discordUserId_roleId.roleId}`;
+          const row = { ...create };
+          grants.set(key, row);
+          return row;
+        },
+      ),
       deleteMany: vi.fn(async () => ({ count: 0 })),
     },
     auditEvent: { create: vi.fn(async () => ({})) },

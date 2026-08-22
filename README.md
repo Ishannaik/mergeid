@@ -7,9 +7,10 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Ishannaik/mergeid/pulls)
 [![Issues](https://img.shields.io/github/issues/Ishannaik/mergeid)](https://github.com/Ishannaik/mergeid/issues)
 
-**⚠️ Status: pre-alpha (design phase).** This repository currently contains the complete
-architecture, roadmap, and project scaffolding. Implementation starts with
-[Milestone M1](https://github.com/Ishannaik/mergeid/milestones). No releases yet.
+**⚠️ Status: pre-alpha.** Foundations (M1), account linking (M2), the verification
+engine (M3), admin configuration (M4), and periodic sync (M5) are implemented.
+Hardening toward v1.0 (M6) is in progress — see the
+[roadmap](https://github.com/Ishannaik/mergeid/milestones). No releases yet.
 
 ---
 
@@ -129,6 +130,7 @@ mergeid/
 | [`docs/security-audit.md`](docs/security-audit.md) | Implementation security audit: threats mapped to enforcing code   |
 | [`docs/configuration.md`](docs/configuration.md)   | Environment variables, Discord/GitHub app setup, invite URL       |
 | [`docs/admin-setup.md`](docs/admin-setup.md)       | Admin setup guide: `/mergeid` commands, safety rails, audit       |
+| [`docs/self-hosting.md`](docs/self-hosting.md)     | Run your own instance: apps, data stores, config, operations      |
 | [`docs/roadmap.md`](docs/roadmap.md)               | Milestones, issue breakdown, labels                               |
 | [`docs/ci-cd.md`](docs/ci-cd.md)                   | Pipelines, release strategy, security scanning, branch protection |
 | [`docs/glossary.md`](docs/glossary.md)             | Plain-English Discord and GitHub terms                            |

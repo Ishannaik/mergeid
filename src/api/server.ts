@@ -38,7 +38,7 @@ export async function startApi(options: {
     },
   });
 
-  app.get('/healthz', async () => ({ ok: true }));
+  app.get('/healthz', () => Promise.resolve({ ok: true }));
   registerOAuthRoutes(app, { config, logger, oauthState, links, linkedRoles, engine });
 
   await app.listen({ port: config.PORT, host: '0.0.0.0' });

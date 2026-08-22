@@ -63,7 +63,7 @@ export function createVerificationEngine(deps: {
   roles: RuleRoleService;
   tokenCrypto: TokenCrypto;
 }) {
-  const { prisma, config, logger } = deps;
+  const { prisma, logger } = deps;
   const log = logger.child({ component: 'verification' });
 
   const emptySummary = (guildId: string | null): VerifySummary => ({

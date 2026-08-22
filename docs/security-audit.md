@@ -13,24 +13,24 @@ the current pre-alpha scope.
 
 ## Threat-by-threat verification
 
-| #   | Threat                    | Status | Enforced by                                                                                     | Tests                                                        |
-| --- | ------------------------- | ------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| 1   | DB breach exposes tokens  | ✅     | `src/crypto/token.ts` — AES-256-GCM, versioned envelope, version bound as AAD                   | `test/crypto/token.test.ts`                                  |
-| 2   | OAuth CSRF / link hijack  | ✅     | `src/oauth/state.ts` single-use nonce (Redis GETDEL / memory delete), TTL 600s                  | `test/integration/oauth-flow.e2e.test.ts` replay case        |
-| 3   | OAuth mix-up              | ✅     | Single app + strict redirect URI (`src/github/oauth.ts`); state store scoped per deployment      | oauth-flow e2e                                               |
-| 4   | Impersonation via rename  | ✅     | Engine authorizes on numeric id; login stored for display only                                   | `test/verification/engine.test.ts`                           |
-| 5   | Double-linking abuse      | ✅     | Unique constraint on `github_user_id`; service rejects second link (`src/services/links.ts`)     | `test/services/links.test.ts`                                |
-| 6   | Privilege escalation      | ✅     | Allowlist gate at rule creation; protected roles; position preflight (`src/discord/preflight.ts`)| `test/services/rules.test.ts`, `test/discord/roles.test.ts`  |
-| 7   | Malicious guild admin     | ✅     | Checks run with the member's token — admin gains nothing; 25-rule cap enforced in `addRule`      | `test/services/rules.test.ts` cap cases                      |
-| 8   | Role flapping             | ✅     | Diff reconciliation; ERROR keeps last-known state; only MergeID-owned grants revoked              | engine tests; demo integration                               |
-| 9   | Rate-limit exhaustion     | ✅     | `src/sync/rate-budget.ts` token bucket (fail-open) + full-jitter backoff; worker concurrency 2   | `test/sync/rate-budget.test.ts`                              |
-| 10  | Token leakage in logs     | ✅     | pino redaction paths incl. `authorization`, `access_token`, `code_verifier` (`src/lib/logger.ts`) | logger construction reviewed; crypto errors are value-free   |
-| 11  | Secrets in repo           | ✅     | `.gitignore` covers `.env`; gitleaks workflow present                                            | CI                                                           |
-| 12  | SQL injection             | ✅     | Prisma parameterized queries only; no `$queryRaw` anywhere in `src/`                             | grep audit (this walkthrough)                                |
-| 13  | Bot token theft           | ✅     | Env-only via zod config; no privileged intents (`GatewayIntentBits.Guilds` only)                 | `src/discord/client.ts` (intent surface reviewed in audit)   |
-| 14  | Callback endpoint abuse   | ✅     | Stateless handler; Redis TTL bounds state volume; proxy rate-limiting documented                 | oauth-flow e2e                                               |
-| 15  | Supply chain              | ✅     | `pnpm-lock.yaml` committed; Dependabot config active                                             | CI                                                           |
-| 16  | Zombie access             | ✅     | M5 worker re-verifies on each rule's cadence; revocation only of owned grants                    | `test/sync/worker.test.ts`; live e2e `sync.e2e.test.ts`      |
+| #   | Threat                   | Status | Enforced by                                                                                       | Tests                                                       |
+| --- | ------------------------ | ------ | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| 1   | DB breach exposes tokens | ✅     | `src/crypto/token.ts` — AES-256-GCM, versioned envelope, version bound as AAD                     | `test/crypto/token.test.ts`                                 |
+| 2   | OAuth CSRF / link hijack | ✅     | `src/oauth/state.ts` single-use nonce (Redis GETDEL / memory delete), TTL 600s                    | `test/integration/oauth-flow.e2e.test.ts` replay case       |
+| 3   | OAuth mix-up             | ✅     | Single app + strict redirect URI (`src/github/oauth.ts`); state store scoped per deployment       | oauth-flow e2e                                              |
+| 4   | Impersonation via rename | ✅     | Engine authorizes on numeric id; login stored for display only                                    | `test/verification/engine.test.ts`                          |
+| 5   | Double-linking abuse     | ✅     | Unique constraint on `github_user_id`; service rejects second link (`src/services/links.ts`)      | `test/services/links.test.ts`                               |
+| 6   | Privilege escalation     | ✅     | Allowlist gate at rule creation; protected roles; position preflight (`src/discord/preflight.ts`) | `test/services/rules.test.ts`, `test/discord/roles.test.ts` |
+| 7   | Malicious guild admin    | ✅     | Checks run with the member's token — admin gains nothing; 25-rule cap enforced in `addRule`       | `test/services/rules.test.ts` cap cases                     |
+| 8   | Role flapping            | ✅     | Diff reconciliation; ERROR keeps last-known state; only MergeID-owned grants revoked              | engine tests; demo integration                              |
+| 9   | Rate-limit exhaustion    | ✅     | `src/sync/rate-budget.ts` token bucket (fail-open) + full-jitter backoff; worker concurrency 2    | `test/sync/rate-budget.test.ts`                             |
+| 10  | Token leakage in logs    | ✅     | pino redaction paths incl. `authorization`, `access_token`, `code_verifier` (`src/lib/logger.ts`) | logger construction reviewed; crypto errors are value-free  |
+| 11  | Secrets in repo          | ✅     | `.gitignore` covers `.env`; gitleaks workflow present                                             | CI                                                          |
+| 12  | SQL injection            | ✅     | Prisma parameterized queries only; no `$queryRaw` anywhere in `src/`                              | grep audit (this walkthrough)                               |
+| 13  | Bot token theft          | ✅     | Env-only via zod config; no privileged intents (`GatewayIntentBits.Guilds` only)                  | `src/discord/client.ts` (intent surface reviewed in audit)  |
+| 14  | Callback endpoint abuse  | ✅     | Stateless handler; Redis TTL bounds state volume; proxy rate-limiting documented                  | oauth-flow e2e                                              |
+| 15  | Supply chain             | ✅     | `pnpm-lock.yaml` committed; Dependabot config active                                              | CI                                                          |
+| 16  | Zombie access            | ✅     | M5 worker re-verifies on each rule's cadence; revocation only of owned grants                     | `test/sync/worker.test.ts`; live e2e `sync.e2e.test.ts`     |
 
 ## What the audit confirmed beyond the table
 

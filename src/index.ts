@@ -14,9 +14,9 @@ import { createRedisOAuthStateStore } from './oauth/index.js';
 import { createLinkService, createRulesService } from './services/index.js';
 import { createLinkedRoleService } from './discord/roles.js';
 import { createRuleRoleService } from './discord/rule-roles.js';
+import { getGatewayClient } from './discord/client.js';
 import { createVerificationEngine } from './verification/engine.js';
 import type { RuntimeRole } from './config/index.js';
-import type { Client } from 'discord.js';
 
 async function main(): Promise<void> {
   loadDotenv();
@@ -43,18 +43,18 @@ async function main(): Promise<void> {
   const rules = prisma && logger ? createRulesService({ prisma, logger }) : null;
 
   // Late-bound: the api role starts before the gateway client exists, and the
-  // OAuth callback (api) is what applies the role after a link completes. The
-  // holder is assigned when the bot role boots below; a link cannot complete
-  // before then, because the authorize URL is handed out by the bot itself.
-  let botClient: Client | null = null;
+  // OAuth callback (api) is what applies the role after a link completes.
+  // The gateway client holder lives in discord/client.ts (assigned at bot
+  // boot); a link cannot complete before then, because the authorize URL is
+  // handed out by the bot itself.
   const linkedRoles = createLinkedRoleService({
     config,
     logger,
-    getClient: () => botClient,
+    getClient: () => getGatewayClient(),
   });
   const ruleRoles = createRuleRoleService({
     logger,
-    getClient: () => botClient,
+    getClient: () => getGatewayClient(),
   });
   const engine =
     prisma && rules && config && logger
@@ -85,7 +85,9 @@ async function main(): Promise<void> {
       linkedRoles,
       engine,
     });
-    shutdownHandlers.push(api.stop);
+    shutdownHandlers.push(async () => {
+      await api.stop();
+    });
   }
 
   if (roles.has('bot')) {
@@ -94,8 +96,9 @@ async function main(): Promise<void> {
     }
     const { startBot } = await import('./discord/client.js');
     const bot = await startBot();
-    void bot;
-    shutdownHandlers.push(bot.stop);
+    shutdownHandlers.push(async () => {
+      await bot.stop();
+    });
   }
 
   if (roles.has('worker')) {
@@ -115,7 +118,9 @@ async function main(): Promise<void> {
     logger.info(reconciled, 'sync schedules reconciled');
 
     const worker = await startWorker({ prisma, engine, config, logger });
-    shutdownHandlers.push(worker.stop);
+    shutdownHandlers.push(async () => {
+      await worker.stop();
+    });
     shutdownHandlers.push(async () => {
       await closeSyncQueue(syncQueue);
     });
