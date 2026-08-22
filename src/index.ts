@@ -34,7 +34,7 @@ async function main(): Promise<void> {
   const roles = new Set<RuntimeRole>(config.MERGEID_ROLES);
   logger.info({ roles: [...roles] }, 'starting mergeid');
 
-  const needsDataPlane = roles.has('api') || roles.has('bot');
+  const needsDataPlane = roles.has('api') || roles.has('bot') || roles.has('worker');
   const prisma = needsDataPlane ? createPrismaClient(config) : null;
   const redis = needsDataPlane ? createRedisClient(config, logger) : null;
   const oauthState = redis ? createRedisOAuthStateStore(redis) : null;
@@ -99,7 +99,42 @@ async function main(): Promise<void> {
   }
 
   if (roles.has('worker')) {
-    logger.warn('worker role requested but not implemented until M5; ignoring');
+    if (!prisma || !rules || !engine || !redis) {
+      throw new Error('worker role requires database, redis, rules, and verification engine');
+    }
+    const { createSyncQueue, reconcileSchedules, closeSyncQueue } =
+      await import('./sync/scheduler.js');
+    const { startWorker } = await import('./sync/worker.js');
+
+    // Producer: keep schedules aligned with the rules table at boot.
+    const syncQueue = createSyncQueue(logger);
+    const allRules = await prisma.verificationRule.findMany({
+      select: { id: true, guildId: true, recheckMinutes: true, enabled: true },
+    });
+    const reconciled = await reconcileSchedules(syncQueue, allRules);
+    logger.info(reconciled, 'sync schedules reconciled');
+
+    const worker = await startWorker({ prisma, engine, config, logger });
+    shutdownHandlers.push(worker.stop);
+    shutdownHandlers.push(async () => {
+      await closeSyncQueue(syncQueue);
+    });
+
+    // Keep schedules fresh when rules change in-process (same-process bot/api
+    // edits). Cross-process deployments rely on worker-boot reconciliation.
+    rules.onScheduleChanged?.((rule) => {
+      void (
+        rule.enabled
+          ? import('./sync/scheduler.js').then((m) =>
+              m.scheduleRule(syncQueue, {
+                guildId: rule.guildId,
+                ruleId: rule.id,
+                recheckMinutes: rule.recheckMinutes,
+              }),
+            )
+          : import('./sync/scheduler.js').then((m) => m.unscheduleRule(syncQueue, rule.id))
+      ).catch((err: unknown) => logger.error({ err }, 'failed to update rule schedule'));
+    });
   }
 
   shutdownHandlers.push(async () => {

@@ -144,6 +144,11 @@ export const mergeidCommandData = new SlashCommandBuilder()
   .addSubcommandGroup(settingsGroup())
   .addSubcommand(
     new SlashCommandSubcommandBuilder()
+      .setName('sync-status')
+      .setDescription('Periodic sync health: last runs per rule and 24h totals'),
+  )
+  .addSubcommand(
+    new SlashCommandSubcommandBuilder()
       .setName('audit')
       .setDescription('Show recent admin and verification activity')
       .addIntegerOption((o) =>
@@ -378,6 +383,35 @@ export async function executeMergeid(
         });
         return;
       }
+    }
+
+    if (group === null && sub === 'sync-status') {
+      const status = await rules.syncStatus({ guildId });
+      if (status.rules.length === 0) {
+        await interaction.reply({
+          content:
+            'No verification rules yet — nothing to sync. Add one with `/mergeid rules add`.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+      const lines = status.rules.map((rule) => {
+        const shortId = `\`${rule.ruleId.slice(0, 8)}…\``;
+        if (rule.runs24h === 0 || rule.lastStatus === null) {
+          return `${shortId} · no runs in the last 24h (worker idle or schedule pending)`;
+        }
+        const when = `<t:${Math.floor((rule.lastRunAt?.getTime() ?? Date.now()) / 1000)}:R>`;
+        return `${shortId} · last run ${when} (${rule.lastStatus}) · ${rule.checked} checks, ${rule.errored} errored, +${rule.granted}/-${rule.revoked} roles over ${rule.runs24h} run(s)`;
+      });
+      const t = status.totals;
+      await interaction.reply({
+        content: [
+          `**Sync health (last 24h):** ${t.runs24h} run(s) — ✅ ${t.ok24h} ok, ⚠️ ${t.partial24h} partial, ❌ ${t.failed24h} failed`,
+          ...lines,
+        ].join('\n'),
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
     }
 
     if (group === null && sub === 'audit') {

@@ -70,6 +70,41 @@ export interface RuleView {
 export function createRulesService(deps: { prisma: PrismaClient; logger: Logger }) {
   const { prisma, logger } = deps;
 
+  /**
+   * Optional listener fired after a rule is created, removed, or reconfigured.
+   * The worker registers one to keep BullMQ schedules aligned with the rules
+   * table without polling. Absent in tests and single-role deployments.
+   */
+  let scheduleListener:
+    | ((rule: { id: string; guildId: string; recheckMinutes: number; enabled: boolean }) => void)
+    | null = null;
+
+  /** Registers the schedule-change listener; returns the service for chaining. */
+  function onScheduleChanged(
+    listener: (rule: {
+      id: string;
+      guildId: string;
+      recheckMinutes: number;
+      enabled: boolean;
+    }) => void,
+  ): void {
+    scheduleListener = listener;
+  }
+
+  function notifyScheduleChanged(rule: {
+    id: string;
+    guildId: string;
+    recheckMinutes: number;
+    enabled: boolean;
+  }): void {
+    try {
+      scheduleListener?.(rule);
+    } catch (err) {
+      // A broken listener must never fail the admin operation itself.
+      logger.warn({ err, ruleId: rule.id }, 'schedule listener threw');
+    }
+  }
+
   async function getSettings(guildId: string): Promise<GuildSettings> {
     const guild = await prisma.guild.findUnique({ where: { guildId } });
     if (!guild) return { ...DEFAULT_SETTINGS };
@@ -160,6 +195,7 @@ export function createRulesService(deps: { prisma: PrismaClient; logger: Logger 
 
   return {
     getSettings,
+    onScheduleChanged,
 
     async listRules(guildId: string): Promise<RuleView[]> {
       const rules = await prisma.verificationRule.findMany({
@@ -279,6 +315,12 @@ export function createRulesService(deps: { prisma: PrismaClient; logger: Logger 
         { guildId: input.guildId, ruleId: rule.id, kind, org },
         'verification rule created',
       );
+      notifyScheduleChanged({
+        id: rule.id,
+        guildId: rule.guildId,
+        recheckMinutes: rule.recheckMinutes,
+        enabled: rule.enabled,
+      });
       return {
         id: rule.id,
         guildId: rule.guildId,
@@ -319,6 +361,12 @@ export function createRulesService(deps: { prisma: PrismaClient; logger: Logger 
       });
 
       logger.info({ guildId: input.guildId, ruleId: input.ruleId }, 'verification rule removed');
+      notifyScheduleChanged({
+        id: existing.id,
+        guildId: input.guildId,
+        recheckMinutes: existing.recheckMinutes,
+        enabled: false,
+      });
       return { removed: true };
     },
 
@@ -450,6 +498,102 @@ export function createRulesService(deps: { prisma: PrismaClient; logger: Logger 
         meta: row.meta,
         at: row.at,
       }));
+    },
+
+    /**
+     * Recent sync runs for one guild's rules with per-rule rollups and 24h
+     * totals. Backs `/mergeid sync status` (M5 #6).
+     */
+    async syncStatus(input: { guildId: string }): Promise<{
+      rules: Array<{
+        ruleId: string;
+        lastRunAt: Date | null;
+        lastStatus: string | null;
+        checked: number;
+        errored: number;
+        granted: number;
+        revoked: number;
+        runs24h: number;
+      }>;
+      totals: { runs24h: number; ok24h: number; partial24h: number; failed24h: number };
+    }> {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const rules = await prisma.verificationRule.findMany({
+        where: { guildId: input.guildId },
+        select: { id: true },
+      });
+      if (rules.length === 0) {
+        return { rules: [], totals: { runs24h: 0, ok24h: 0, partial24h: 0, failed24h: 0 } };
+      }
+
+      const recent = await prisma.syncRun.findMany({
+        where: { ruleId: { in: rules.map((r) => r.id) }, startedAt: { gte: since } },
+        orderBy: { startedAt: 'desc' },
+      });
+
+      interface SyncStats {
+        checked?: number;
+        errored?: number;
+        granted?: number;
+        revoked?: number;
+      }
+      const byRule = new Map<
+        string,
+        {
+          lastRunAt: Date | null;
+          lastStatus: string | null;
+          checked: number;
+          errored: number;
+          granted: number;
+          revoked: number;
+          runs24h: number;
+        }
+      >();
+      const totals = { runs24h: recent.length, ok24h: 0, partial24h: 0, failed24h: 0 };
+
+      for (const run of recent) {
+        if (run.status === 'OK') totals.ok24h += 1;
+        else if (run.status === 'PARTIAL') totals.partial24h += 1;
+        else totals.failed24h += 1;
+
+        const entry = byRule.get(run.ruleId) ?? {
+          lastRunAt: null as Date | null,
+          lastStatus: null as string | null,
+          checked: 0,
+          errored: 0,
+          granted: 0,
+          revoked: 0,
+          runs24h: 0,
+        };
+        // findMany is newest-first, so the first sighting is the latest run.
+        if (entry.lastRunAt === null) {
+          entry.lastRunAt = run.startedAt;
+          entry.lastStatus = run.status;
+        }
+        const stats = (run.stats ?? {}) as SyncStats;
+        entry.checked += stats.checked ?? 0;
+        entry.errored += stats.errored ?? 0;
+        entry.granted += stats.granted ?? 0;
+        entry.revoked += stats.revoked ?? 0;
+        entry.runs24h += 1;
+        byRule.set(run.ruleId, entry);
+      }
+
+      return {
+        rules: rules.map((rule) => ({
+          ruleId: rule.id,
+          ...(byRule.get(rule.id) ?? {
+            lastRunAt: null,
+            lastStatus: null,
+            checked: 0,
+            errored: 0,
+            granted: 0,
+            revoked: 0,
+            runs24h: 0,
+          }),
+        })),
+        totals,
+      };
     },
   };
 }
