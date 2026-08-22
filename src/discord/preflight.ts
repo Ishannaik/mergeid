@@ -179,7 +179,10 @@ export async function resolveManageableRole(
   try {
     me = guild.members.me ?? (await guild.members.fetchMe());
   } catch (err) {
-    deps.logger.warn({ err, guildId: guild.id }, 'could not resolve bot member for permission preflight');
+    deps.logger.warn(
+      { err, guildId: guild.id },
+      'could not resolve bot member for permission preflight',
+    );
     return fail('guild_unavailable', 'bot member unresolvable');
   }
 

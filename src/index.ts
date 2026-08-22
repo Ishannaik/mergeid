@@ -25,7 +25,10 @@ async function main(): Promise<void> {
 
   // Versioned AES-256-GCM crypto for stored GitHub tokens (docs/security-model.md §2).
   const tokenCrypto = createTokenCrypto({
-    active: { version: Number(config.TOKEN_ENCRYPTION_KEY_VERSION), key: config.TOKEN_ENCRYPTION_KEY },
+    active: {
+      version: Number(config.TOKEN_ENCRYPTION_KEY_VERSION),
+      key: config.TOKEN_ENCRYPTION_KEY,
+    },
   });
 
   const roles = new Set<RuntimeRole>(config.MERGEID_ROLES);
@@ -35,7 +38,8 @@ async function main(): Promise<void> {
   const prisma = needsDataPlane ? createPrismaClient(config) : null;
   const redis = needsDataPlane ? createRedisClient(config, logger) : null;
   const oauthState = redis ? createRedisOAuthStateStore(redis) : null;
-  const links = prisma && logger ? createLinkService({ prisma, config, logger, tokenCrypto }) : null;
+  const links =
+    prisma && logger ? createLinkService({ prisma, config, logger, tokenCrypto }) : null;
   const rules = prisma && logger ? createRulesService({ prisma, logger }) : null;
 
   // Late-bound: the api role starts before the gateway client exists, and the

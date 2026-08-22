@@ -31,6 +31,8 @@ export interface GuildSettings {
   assignableRoles: string[];
   /** Roles the engine must never touch (admins/managed by other bots). */
   protectedRoleIds: string[];
+  /** Optional channel MergeID posts sync failures and audit notices to. */
+  logChannelId?: string;
 }
 
 const DEFAULT_SETTINGS: GuildSettings = { assignableRoles: [], protectedRoleIds: [] };
@@ -75,6 +77,9 @@ export function createRulesService(deps: { prisma: PrismaClient; logger: Logger 
     return {
       assignableRoles: Array.isArray(raw.assignableRoles) ? raw.assignableRoles : [],
       protectedRoleIds: Array.isArray(raw.protectedRoleIds) ? raw.protectedRoleIds : [],
+      ...(typeof raw.logChannelId === 'string' && raw.logChannelId.length > 0
+        ? { logChannelId: raw.logChannelId }
+        : {}),
     };
   }
 
@@ -118,7 +123,10 @@ export function createRulesService(deps: { prisma: PrismaClient; logger: Logger 
   }
 
   function normalizeOrg(org: string): string {
-    const trimmed = org.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/+$/, '');
+    const trimmed = org
+      .trim()
+      .replace(/^https?:\/\/github\.com\//, '')
+      .replace(/\/+$/, '');
     if (!/^[a-zA-Z0-9][a-zA-Z0-9-]*$/.test(trimmed)) {
       throw new AppError(
         `"${org}" is not a valid GitHub org name. Paste the org name (or its github.com URL), e.g. "acme" or "https://github.com/acme".`,
@@ -267,7 +275,10 @@ export function createRulesService(deps: { prisma: PrismaClient; logger: Logger 
         meta: { kind, org, repo, teamSlug, roleId: input.roleId, recheckMinutes },
       });
 
-      logger.info({ guildId: input.guildId, ruleId: rule.id, kind, org }, 'verification rule created');
+      logger.info(
+        { guildId: input.guildId, ruleId: rule.id, kind, org },
+        'verification rule created',
+      );
       return {
         id: rule.id,
         guildId: rule.guildId,
@@ -283,7 +294,11 @@ export function createRulesService(deps: { prisma: PrismaClient; logger: Logger 
       };
     },
 
-    async removeRule(input: { guildId: string; ruleId: string; actorDiscordId: string }): Promise<{ removed: boolean }> {
+    async removeRule(input: {
+      guildId: string;
+      ruleId: string;
+      actorDiscordId: string;
+    }): Promise<{ removed: boolean }> {
       const existing = await prisma.verificationRule.findFirst({
         where: { id: input.ruleId, guildId: input.guildId },
       });
@@ -341,6 +356,100 @@ export function createRulesService(deps: { prisma: PrismaClient; logger: Logger 
         subject: input.roleId,
       });
       return next;
+    },
+
+    async addProtectedRole(input: {
+      guildId: string;
+      roleId: string;
+      actorDiscordId: string;
+    }): Promise<GuildSettings> {
+      const next = await updateSettings(input.guildId, (current) => {
+        if (current.protectedRoleIds.includes(input.roleId)) return current;
+        return { ...current, protectedRoleIds: [...current.protectedRoleIds, input.roleId] };
+      });
+      // Guard in the other direction too: a role that becomes protected must
+      // not stay allowlisted, or a later rule could still hand it out.
+      const cleaned = next.assignableRoles.includes(input.roleId)
+        ? { ...next, assignableRoles: next.assignableRoles.filter((id) => id !== input.roleId) }
+        : next;
+      if (cleaned !== next) {
+        await updateSettings(input.guildId, () => cleaned);
+      }
+      await writeAudit({
+        guildId: input.guildId,
+        actorDiscordId: input.actorDiscordId,
+        action: 'settings.protected_role.added',
+        subject: input.roleId,
+      });
+      return cleaned;
+    },
+
+    async removeProtectedRole(input: {
+      guildId: string;
+      roleId: string;
+      actorDiscordId: string;
+    }): Promise<GuildSettings> {
+      const next = await updateSettings(input.guildId, (current) => ({
+        ...current,
+        protectedRoleIds: current.protectedRoleIds.filter((id) => id !== input.roleId),
+      }));
+      await writeAudit({
+        guildId: input.guildId,
+        actorDiscordId: input.actorDiscordId,
+        action: 'settings.protected_role.removed',
+        subject: input.roleId,
+      });
+      return next;
+    },
+
+    async setLogChannel(input: {
+      guildId: string;
+      channelId: string | null;
+      actorDiscordId: string;
+    }): Promise<GuildSettings> {
+      const channelId = input.channelId?.trim() || null;
+      const next = await updateSettings(input.guildId, (current) => {
+        const rest = { ...current };
+        delete (rest as Partial<GuildSettings>).logChannelId;
+        return channelId ? { ...rest, logChannelId: channelId } : rest;
+      });
+      await writeAudit({
+        guildId: input.guildId,
+        actorDiscordId: input.actorDiscordId,
+        action: channelId ? 'settings.log_channel.set' : 'settings.log_channel.cleared',
+        subject: channelId ?? undefined,
+      });
+      return next;
+    },
+
+    /**
+     * Recent audit events for one guild, newest first. Read-only — no audit
+     * row for the read itself, matching docs/security-model.md §4.
+     */
+    async listAuditEvents(input: { guildId: string; limit?: number }): Promise<
+      Array<{
+        id: string;
+        actorDiscordId: string | null;
+        action: string;
+        subject: string | null;
+        meta: unknown;
+        at: Date;
+      }>
+    > {
+      const limit = Math.min(Math.max(input.limit ?? 10, 1), 25);
+      const rows = await prisma.auditEvent.findMany({
+        where: { guildId: input.guildId },
+        orderBy: { at: 'desc' },
+        take: limit,
+      });
+      return rows.map((row) => ({
+        id: row.id,
+        actorDiscordId: row.actorDiscordId,
+        action: row.action,
+        subject: row.subject,
+        meta: row.meta,
+        at: row.at,
+      }));
     },
   };
 }

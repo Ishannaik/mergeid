@@ -93,7 +93,9 @@ describe('checkRepoPushAccess', () => {
   it('rethrows non-404 errors', async () => {
     const octokit = fakeOctokit();
     (octokit.repos.get as ReturnType<typeof vi.fn>).mockRejectedValue({ status: 403 });
-    await expect(checkRepoPushAccess(octokit, 'acme', 'api')).rejects.toMatchObject({ status: 403 });
+    await expect(checkRepoPushAccess(octokit, 'acme', 'api')).rejects.toMatchObject({
+      status: 403,
+    });
   });
 });
 
@@ -125,7 +127,9 @@ describe('checkTeamMembership', () => {
 
   it('treats 404 as not a member', async () => {
     const octokit = fakeOctokit();
-    (octokit.teams.getMembershipForUserInOrg as ReturnType<typeof vi.fn>).mockRejectedValue(notFound);
+    (octokit.teams.getMembershipForUserInOrg as ReturnType<typeof vi.fn>).mockRejectedValue(
+      notFound,
+    );
     const result = await checkTeamMembership(octokit, 'acme', 'core', 'octocat');
     expect(result.member).toBe(false);
     expect(result.detail).toContain('not a member of the team');

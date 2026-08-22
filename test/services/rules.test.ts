@@ -108,7 +108,13 @@ describe('rules service — addRule', () => {
     prisma.verificationRule.create.mockResolvedValue(ruleRow());
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
-    const rule = await svc.addRule({ guildId: GUILD, kind: 'ORG', org: 'acme', roleId: ROLE, createdBy: ACTOR });
+    const rule = await svc.addRule({
+      guildId: GUILD,
+      kind: 'ORG',
+      org: 'acme',
+      roleId: ROLE,
+      createdBy: ACTOR,
+    });
 
     expect(rule.kind).toBe('ORG');
     expect(rule.org).toBe('acme');
@@ -132,10 +138,24 @@ describe('rules service — addRule', () => {
     );
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
-    const repoRule = await svc.addRule({ guildId: GUILD, kind: 'REPO', org: 'acme', repo: 'api', roleId: ROLE, createdBy: ACTOR });
+    const repoRule = await svc.addRule({
+      guildId: GUILD,
+      kind: 'REPO',
+      org: 'acme',
+      repo: 'api',
+      roleId: ROLE,
+      createdBy: ACTOR,
+    });
     expect(repoRule.repo).toBe('api');
 
-    const teamRule = await svc.addRule({ guildId: GUILD, kind: 'TEAM', org: 'acme', teamSlug: 'core', roleId: ROLE, createdBy: ACTOR });
+    const teamRule = await svc.addRule({
+      guildId: GUILD,
+      kind: 'TEAM',
+      org: 'acme',
+      teamSlug: 'core',
+      roleId: ROLE,
+      createdBy: ACTOR,
+    });
     expect(teamRule.teamSlug).toBe('core');
   });
 
@@ -146,7 +166,13 @@ describe('rules service — addRule', () => {
     prisma.verificationRule.create.mockResolvedValue(ruleRow());
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
-    const rule = await svc.addRule({ guildId: GUILD, kind: 'ORG', org: 'https://github.com/acme/', roleId: ROLE, createdBy: ACTOR });
+    const rule = await svc.addRule({
+      guildId: GUILD,
+      kind: 'ORG',
+      org: 'https://github.com/acme/',
+      roleId: ROLE,
+      createdBy: ACTOR,
+    });
     expect(rule.org).toBe('acme');
   });
 
@@ -155,7 +181,13 @@ describe('rules service — addRule', () => {
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
     await expect(
-      svc.addRule({ guildId: GUILD, kind: 'ORG', org: 'not valid!', roleId: ROLE, createdBy: ACTOR }),
+      svc.addRule({
+        guildId: GUILD,
+        kind: 'ORG',
+        org: 'not valid!',
+        roleId: ROLE,
+        createdBy: ACTOR,
+      }),
     ).rejects.toMatchObject({ code: 'invalid_org', expose: true });
   });
 
@@ -173,7 +205,14 @@ describe('rules service — addRule', () => {
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
     await expect(
-      svc.addRule({ guildId: GUILD, kind: 'REPO', org: 'acme', repo: 'bad/name', roleId: ROLE, createdBy: ACTOR }),
+      svc.addRule({
+        guildId: GUILD,
+        kind: 'REPO',
+        org: 'acme',
+        repo: 'bad/name',
+        roleId: ROLE,
+        createdBy: ACTOR,
+      }),
     ).rejects.toMatchObject({ code: 'invalid_repo' });
   });
 
@@ -191,7 +230,14 @@ describe('rules service — addRule', () => {
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
     await expect(
-      svc.addRule({ guildId: GUILD, kind: 'TEAM', org: 'acme', teamSlug: 'bad slug', roleId: ROLE, createdBy: ACTOR }),
+      svc.addRule({
+        guildId: GUILD,
+        kind: 'TEAM',
+        org: 'acme',
+        teamSlug: 'bad slug',
+        roleId: ROLE,
+        createdBy: ACTOR,
+      }),
     ).rejects.toMatchObject({ code: 'invalid_team_slug' });
   });
 
@@ -200,7 +246,14 @@ describe('rules service — addRule', () => {
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
     await expect(
-      svc.addRule({ guildId: GUILD, kind: 'ORG', org: 'acme', repo: 'api', roleId: ROLE, createdBy: ACTOR }),
+      svc.addRule({
+        guildId: GUILD,
+        kind: 'ORG',
+        org: 'acme',
+        repo: 'api',
+        roleId: ROLE,
+        createdBy: ACTOR,
+      }),
     ).rejects.toMatchObject({ code: 'org_extra_fields' });
   });
 
@@ -210,7 +263,14 @@ describe('rules service — addRule', () => {
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
     await expect(
-      svc.addRule({ guildId: GUILD, kind: 'ORG', org: 'acme', roleId: ROLE, recheckMinutes: 10, createdBy: ACTOR }),
+      svc.addRule({
+        guildId: GUILD,
+        kind: 'ORG',
+        org: 'acme',
+        roleId: ROLE,
+        recheckMinutes: 10,
+        createdBy: ACTOR,
+      }),
     ).rejects.toMatchObject({ code: 'bad_recheck_interval' });
   });
 
@@ -223,7 +283,14 @@ describe('rules service — addRule', () => {
     );
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
-    const rule = await svc.addRule({ guildId: GUILD, kind: 'ORG', org: 'acme', roleId: ROLE, recheckMinutes: 60, createdBy: ACTOR });
+    const rule = await svc.addRule({
+      guildId: GUILD,
+      kind: 'ORG',
+      org: 'acme',
+      roleId: ROLE,
+      recheckMinutes: 60,
+      createdBy: ACTOR,
+    });
     expect(rule.recheckMinutes).toBe(60);
   });
 
@@ -233,7 +300,13 @@ describe('rules service — addRule', () => {
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
     await expect(
-      svc.addRule({ guildId: GUILD, kind: 'ORG', org: 'acme', roleId: '777777777777777777', createdBy: ACTOR }),
+      svc.addRule({
+        guildId: GUILD,
+        kind: 'ORG',
+        org: 'acme',
+        roleId: '777777777777777777',
+        createdBy: ACTOR,
+      }),
     ).rejects.toMatchObject({ code: 'role_not_allowlisted' });
     expect(prisma.verificationRule.create).not.toHaveBeenCalled();
   });
@@ -250,7 +323,13 @@ describe('rules service — addRule', () => {
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
     await expect(
-      svc.addRule({ guildId: GUILD, kind: 'ORG', org: 'acme', roleId: PROTECTED_ROLE, createdBy: ACTOR }),
+      svc.addRule({
+        guildId: GUILD,
+        kind: 'ORG',
+        org: 'acme',
+        roleId: PROTECTED_ROLE,
+        createdBy: ACTOR,
+      }),
     ).rejects.toMatchObject({ code: 'role_protected' });
   });
 
@@ -275,7 +354,13 @@ describe('rules service — addRule', () => {
     prisma.verificationRule.create.mockResolvedValue(ruleRow());
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
-    const rule = await svc.addRule({ guildId: GUILD, kind: 'ORG', org: 'acme', roleId: ROLE, createdBy: ACTOR });
+    const rule = await svc.addRule({
+      guildId: GUILD,
+      kind: 'ORG',
+      org: 'acme',
+      roleId: ROLE,
+      createdBy: ACTOR,
+    });
     expect(rule.id).toBe('rule-1');
   });
 });
@@ -286,7 +371,9 @@ describe('rules service — removeRule', () => {
     prisma.verificationRule.findFirst.mockResolvedValue(null);
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
-    await expect(svc.removeRule({ guildId: GUILD, ruleId: 'nope', actorDiscordId: ACTOR })).resolves.toEqual({
+    await expect(
+      svc.removeRule({ guildId: GUILD, ruleId: 'nope', actorDiscordId: ACTOR }),
+    ).resolves.toEqual({
       removed: false,
     });
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -297,11 +384,15 @@ describe('rules service — removeRule', () => {
     prisma.verificationRule.findFirst.mockResolvedValue(ruleRow());
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
-    await expect(svc.removeRule({ guildId: GUILD, ruleId: 'rule-1', actorDiscordId: ACTOR })).resolves.toEqual({
+    await expect(
+      svc.removeRule({ guildId: GUILD, ruleId: 'rule-1', actorDiscordId: ACTOR }),
+    ).resolves.toEqual({
       removed: true,
     });
     expect(prisma.roleGrant.deleteMany).toHaveBeenCalledWith({ where: { ruleId: 'rule-1' } });
-    expect(prisma.membershipResult.deleteMany).toHaveBeenCalledWith({ where: { ruleId: 'rule-1' } });
+    expect(prisma.membershipResult.deleteMany).toHaveBeenCalledWith({
+      where: { ruleId: 'rule-1' },
+    });
     expect(prisma.verificationRule.delete).toHaveBeenCalledWith({ where: { id: 'rule-1' } });
     expect(prisma.auditEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ action: 'rule.removed' }) }),
@@ -315,11 +406,17 @@ describe('rules service — assignable roles', () => {
     prisma.guild.findUnique.mockResolvedValue(null);
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
-    const settings = await svc.addAssignableRole({ guildId: GUILD, roleId: ROLE, actorDiscordId: ACTOR });
+    const settings = await svc.addAssignableRole({
+      guildId: GUILD,
+      roleId: ROLE,
+      actorDiscordId: ACTOR,
+    });
     expect(settings.assignableRoles).toContain(ROLE);
     expect(prisma.guild.upsert).toHaveBeenCalled();
     expect(prisma.auditEvent.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ action: 'settings.assignable_role.added' }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'settings.assignable_role.added' }),
+      }),
     );
   });
 
@@ -328,7 +425,11 @@ describe('rules service — assignable roles', () => {
     prisma.guild.findUnique.mockResolvedValue(allowedGuild);
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
-    const settings = await svc.addAssignableRole({ guildId: GUILD, roleId: ROLE, actorDiscordId: ACTOR });
+    const settings = await svc.addAssignableRole({
+      guildId: GUILD,
+      roleId: ROLE,
+      actorDiscordId: ACTOR,
+    });
     expect(settings.assignableRoles.filter((id) => id === ROLE)).toHaveLength(1);
   });
 
@@ -337,10 +438,16 @@ describe('rules service — assignable roles', () => {
     prisma.guild.findUnique.mockResolvedValue(allowedGuild);
     const svc = createRulesService({ prisma, logger: makeLogger() });
 
-    const settings = await svc.removeAssignableRole({ guildId: GUILD, roleId: ROLE, actorDiscordId: ACTOR });
+    const settings = await svc.removeAssignableRole({
+      guildId: GUILD,
+      roleId: ROLE,
+      actorDiscordId: ACTOR,
+    });
     expect(settings.assignableRoles).not.toContain(ROLE);
     expect(prisma.auditEvent.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ action: 'settings.assignable_role.removed' }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'settings.assignable_role.removed' }),
+      }),
     );
   });
 });
@@ -361,5 +468,188 @@ describe('rules service — listRules', () => {
       where: { guildId: GUILD },
       orderBy: { createdAt: 'asc' },
     });
+  });
+});
+
+describe('rules service — protected roles', () => {
+  it('adds a role to the protected list', async () => {
+    const prisma = makePrisma();
+    prisma.guild.findUnique.mockResolvedValue(null);
+    const svc = createRulesService({ prisma, logger: makeLogger() });
+
+    const settings = await svc.addProtectedRole({
+      guildId: GUILD,
+      roleId: ROLE,
+      actorDiscordId: ACTOR,
+    });
+    expect(settings.protectedRoleIds).toContain(ROLE);
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'settings.protected_role.added' }),
+      }),
+    );
+  });
+
+  it('is idempotent when the role is already protected', async () => {
+    const prisma = makePrisma();
+    prisma.guild.findUnique.mockResolvedValue(allowedGuild);
+    const svc = createRulesService({ prisma, logger: makeLogger() });
+
+    const settings = await svc.addProtectedRole({
+      guildId: GUILD,
+      roleId: PROTECTED_ROLE,
+      actorDiscordId: ACTOR,
+    });
+    expect(settings.protectedRoleIds.filter((id) => id === PROTECTED_ROLE)).toHaveLength(1);
+  });
+
+  it('strips a newly protected role from the allowlist', async () => {
+    const prisma = makePrisma();
+    prisma.guild.findUnique
+      .mockResolvedValueOnce({
+        ...allowedGuild,
+        settings: { assignableRoles: [ROLE], protectedRoleIds: [] },
+      })
+      .mockResolvedValueOnce({
+        ...allowedGuild,
+        settings: { assignableRoles: [ROLE], protectedRoleIds: [ROLE] },
+      });
+    const svc = createRulesService({ prisma, logger: makeLogger() });
+
+    const settings = await svc.addProtectedRole({
+      guildId: GUILD,
+      roleId: ROLE,
+      actorDiscordId: ACTOR,
+    });
+    expect(settings.assignableRoles).not.toContain(ROLE);
+    expect(settings.protectedRoleIds).toContain(ROLE);
+  });
+
+  it('removes a role from the protected list', async () => {
+    const prisma = makePrisma();
+    prisma.guild.findUnique.mockResolvedValue(allowedGuild);
+    const svc = createRulesService({ prisma, logger: makeLogger() });
+
+    const settings = await svc.removeProtectedRole({
+      guildId: GUILD,
+      roleId: PROTECTED_ROLE,
+      actorDiscordId: ACTOR,
+    });
+    expect(settings.protectedRoleIds).not.toContain(PROTECTED_ROLE);
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'settings.protected_role.removed' }),
+      }),
+    );
+  });
+});
+
+describe('rules service — log channel', () => {
+  it('sets the log channel', async () => {
+    const prisma = makePrisma();
+    prisma.guild.findUnique.mockResolvedValue(null);
+    const svc = createRulesService({ prisma, logger: makeLogger() });
+
+    const settings = await svc.setLogChannel({
+      guildId: GUILD,
+      channelId: '222222222222222222',
+      actorDiscordId: ACTOR,
+    });
+    expect(settings.logChannelId).toBe('222222222222222222');
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'settings.log_channel.set' }),
+      }),
+    );
+  });
+
+  it('clears the log channel', async () => {
+    const prisma = makePrisma();
+    prisma.guild.findUnique.mockResolvedValue({
+      ...allowedGuild,
+      settings: { assignableRoles: [], protectedRoleIds: [], logChannelId: '222222222222222222' },
+    });
+    const svc = createRulesService({ prisma, logger: makeLogger() });
+
+    const settings = await svc.setLogChannel({
+      guildId: GUILD,
+      channelId: null,
+      actorDiscordId: ACTOR,
+    });
+    expect(settings.logChannelId).toBeUndefined();
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'settings.log_channel.cleared' }),
+      }),
+    );
+  });
+
+  it('keeps the log channel key off settings when malformed', async () => {
+    const prisma = makePrisma();
+    prisma.guild.findUnique.mockResolvedValue({
+      ...allowedGuild,
+      settings: { assignableRoles: [], protectedRoleIds: [], logChannelId: 42 },
+    });
+    const svc = createRulesService({ prisma, logger: makeLogger() });
+
+    const settings = await svc.getSettings(GUILD);
+    expect(settings.logChannelId).toBeUndefined();
+  });
+});
+
+describe('rules service — audit query', () => {
+  it('returns recent events newest first', async () => {
+    const prisma = makePrisma();
+    prisma.auditEvent.findMany = vi.fn().mockResolvedValue([
+      {
+        id: 'a2',
+        actorDiscordId: ACTOR,
+        action: 'rule.created',
+        subject: 'rule-1',
+        meta: {},
+        at: new Date(2),
+      },
+      {
+        id: 'a1',
+        actorDiscordId: ACTOR,
+        action: 'settings.assignable_role.added',
+        subject: ROLE,
+        meta: {},
+        at: new Date(1),
+      },
+    ]);
+    const svc = createRulesService({ prisma, logger: makeLogger() });
+
+    const events = await svc.listAuditEvents({ guildId: GUILD, limit: 5 });
+    expect(events).toHaveLength(2);
+    expect(events[0]?.action).toBe('rule.created');
+    expect(prisma.auditEvent.findMany).toHaveBeenCalledWith({
+      where: { guildId: GUILD },
+      orderBy: { at: 'desc' },
+      take: 5,
+    });
+  });
+
+  it('clamps the limit into the 1..25 range', async () => {
+    const prisma = makePrisma();
+    prisma.auditEvent.findMany = vi.fn().mockResolvedValue([]);
+    const svc = createRulesService({ prisma, logger: makeLogger() });
+
+    await svc.listAuditEvents({ guildId: GUILD, limit: 500 });
+    expect(prisma.auditEvent.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 25 }));
+
+    await svc.listAuditEvents({ guildId: GUILD, limit: 0 });
+    expect(prisma.auditEvent.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ take: 1 }),
+    );
+  });
+
+  it('defaults to 10 events when no limit is given', async () => {
+    const prisma = makePrisma();
+    prisma.auditEvent.findMany = vi.fn().mockResolvedValue([]);
+    const svc = createRulesService({ prisma, logger: makeLogger() });
+
+    await svc.listAuditEvents({ guildId: GUILD });
+    expect(prisma.auditEvent.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 10 }));
   });
 });

@@ -6,7 +6,7 @@ import type { Logger } from '../../lib/logger.js';
 
 export const verifyCommandData = new SlashCommandBuilder()
   .setName('verify')
-  .setDescription('Re-check your GitHub membership against this server\'s rules and refresh roles');
+  .setDescription("Re-check your GitHub membership against this server's rules and refresh roles");
 
 export async function executeVerify(
   interaction: ChatInputCommandInteraction,
@@ -39,21 +39,27 @@ export async function executeVerify(
   }
   if (summary.notVerified === 'token_unavailable') {
     await interaction.editReply(
-      'Could not verify: your stored GitHub token is unreadable or was revoked on GitHub\'s side. Re-link with `/link` (after `/unlink`).',
+      "Could not verify: your stored GitHub token is unreadable or was revoked on GitHub's side. Re-link with `/link` (after `/unlink`).",
     );
     return;
   }
 
   const lines: string[] = [];
-  lines.push(`**Verification complete** — ${summary.checked} rule${summary.checked === 1 ? '' : 's'} checked`);
-  lines.push(`✅ passed ${summary.passed} · ❌ failed ${summary.failed} · ⚠️ errored ${summary.errored}`);
+  lines.push(
+    `**Verification complete** — ${summary.checked} rule${summary.checked === 1 ? '' : 's'} checked`,
+  );
+  lines.push(
+    `✅ passed ${summary.passed} · ❌ failed ${summary.failed} · ⚠️ errored ${summary.errored}`,
+  );
 
   const roleNames = summary.granted.map((id) => `<@&${id}>`);
   const revokedNames = summary.revoked.map((id) => `<@&${id}>`);
   if (roleNames.length > 0) lines.push(`🎖️ granted: ${roleNames.join(', ')}`);
   if (revokedNames.length > 0) lines.push(`🗑️ removed: ${revokedNames.join(', ')}`);
   if (summary.failures.length > 0) {
-    lines.push('⚠️ Some role changes were skipped by Discord (check the bot\'s role position and permissions).');
+    lines.push(
+      "⚠️ Some role changes were skipped by Discord (check the bot's role position and permissions).",
+    );
   }
 
   await interaction.editReply(lines.join('\n'));

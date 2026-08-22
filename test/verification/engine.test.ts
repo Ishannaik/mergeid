@@ -8,8 +8,7 @@ import { makeLogger } from '../discord/fixtures.js';
 const KEY = '0'.repeat(64);
 
 /** Main-line token crypto bound to the test key. */
-const makeCrypto = () =>
-  createTokenCrypto({ active: { version: 1, key: KEY } });
+const makeCrypto = () => createTokenCrypto({ active: { version: 1, key: KEY } });
 const GUILD = '111111111111111111';
 const USER = '333333333333333333';
 const ROLE_A = '444444444444444444';
@@ -28,7 +27,9 @@ const octokitMock = vi.hoisted(() => ({
 vi.mock('@octokit/rest', () => ({
   Octokit: class {
     users = { getAuthenticated: octokitMock.getAuthenticated };
-    orgs = { getMembershipForAuthenticatedUser: octokitMock.orgs.getMembershipForAuthenticatedUser };
+    orgs = {
+      getMembershipForAuthenticatedUser: octokitMock.orgs.getMembershipForAuthenticatedUser,
+    };
     repos = { get: octokitMock.repos.get };
     teams = { getMembershipForUserInOrg: octokitMock.teams.getMembershipForUserInOrg };
   },
@@ -174,7 +175,9 @@ describe('verification engine — role reconciliation', () => {
     expect(prisma.membershipResult.upsert).toHaveBeenCalled();
     expect(prisma.githubLink.update).toHaveBeenCalled();
     expect(prisma.auditEvent.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ action: 'verification.completed' }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'verification.completed' }),
+      }),
     );
   });
 
@@ -284,9 +287,7 @@ describe('verification engine — mixed runs', () => {
       { guildId: GUILD, discordUserId: USER, roleId: ROLE_B, ruleId: 'rule-2' },
     ]);
     roles.sync.mockImplementation(async (_target: unknown, _roleId: string, shouldHave: boolean) =>
-      shouldHave
-        ? { kind: 'granted', ok: true }
-        : { kind: 'removed', ok: true },
+      shouldHave ? { kind: 'granted', ok: true } : { kind: 'removed', ok: true },
     );
 
     const summary = await engine.verifyUser({ discordUserId: USER, guildId: GUILD });

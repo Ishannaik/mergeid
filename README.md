@@ -127,6 +127,7 @@ mergeid/
 | [`docs/oauth-flow.md`](docs/oauth-flow.md)         | End-to-end GitHub OAuth linking flow and failure handling         |
 | [`docs/security-model.md`](docs/security-model.md) | Threat model, permission model, risks & mitigations, privacy      |
 | [`docs/configuration.md`](docs/configuration.md)   | Environment variables, Discord/GitHub app setup, invite URL       |
+| [`docs/admin-setup.md`](docs/admin-setup.md)       | Admin setup guide: `/mergeid` commands, safety rails, audit       |
 | [`docs/roadmap.md`](docs/roadmap.md)               | Milestones, issue breakdown, labels                               |
 | [`docs/ci-cd.md`](docs/ci-cd.md)                   | Pipelines, release strategy, security scanning, branch protection |
 | [`docs/glossary.md`](docs/glossary.md)             | Plain-English Discord and GitHub terms                            |

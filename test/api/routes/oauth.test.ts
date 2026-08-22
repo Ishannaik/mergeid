@@ -55,7 +55,14 @@ describe('GET /oauth/callback HTML escaping', () => {
     const app = Fastify({ logger: false });
     const oauthState = createMemoryOAuthStateStore();
     const links = { createLink: vi.fn() } as unknown as LinkService;
-    registerOAuthRoutes(app, { config, logger, oauthState, links, linkedRoles: disabledRoles(), engine: null });
+    registerOAuthRoutes(app, {
+      config,
+      logger,
+      oauthState,
+      links,
+      linkedRoles: disabledRoles(),
+      engine: null,
+    });
 
     const payload = '<script>alert(1)</script>';
     const res = await app.inject({
@@ -93,7 +100,14 @@ describe('GET /oauth/callback HTML escaping', () => {
 
     const createLink = vi.fn().mockResolvedValue({ id: 'link-1' });
     const links = { createLink } as unknown as LinkService;
-    registerOAuthRoutes(app, { config, logger, oauthState, links, linkedRoles: disabledRoles(), engine: null });
+    registerOAuthRoutes(app, {
+      config,
+      logger,
+      oauthState,
+      links,
+      linkedRoles: disabledRoles(),
+      engine: null,
+    });
 
     const res = await app.inject({
       method: 'GET',

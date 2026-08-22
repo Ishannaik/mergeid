@@ -18,7 +18,11 @@ export interface RuleRoleService {
    * Make `roleId` match `shouldHave` for `userId` in `guildId`.
    * Returns an outcome; never throws.
    */
-  sync(target: { guildId: string | null; userId: string }, roleId: string, shouldHave: boolean): Promise<RoleOutcome>;
+  sync(
+    target: { guildId: string | null; userId: string },
+    roleId: string,
+    shouldHave: boolean,
+  ): Promise<RoleOutcome>;
 }
 
 export function createRuleRoleService(deps: {

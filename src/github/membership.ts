@@ -60,7 +60,10 @@ export async function checkRepoPushAccess(
   try {
     const { data } = await octokit.repos.get({ owner, repo });
     const push = data.permissions?.push ?? false;
-    return { member: push, detail: push ? undefined : 'does not have push access to the repository' };
+    return {
+      member: push,
+      detail: push ? undefined : 'does not have push access to the repository',
+    };
   } catch (err) {
     if (isNotFound(err)) {
       return { member: false, detail: 'repository not found or not accessible' };

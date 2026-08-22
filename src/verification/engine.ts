@@ -120,7 +120,12 @@ export function createVerificationEngine(deps: {
         }
         case RuleKind.REPO: {
           if (!input.repo) {
-            return { ruleId: input.ruleId, roleId: '', status: MembershipStatus.ERROR, detail: 'repo missing on REPO rule' };
+            return {
+              ruleId: input.ruleId,
+              roleId: '',
+              status: MembershipStatus.ERROR,
+              detail: 'repo missing on REPO rule',
+            };
           }
           const result = await checkRepoPushAccess(input.octokit, input.org, input.repo);
           return {
@@ -132,9 +137,19 @@ export function createVerificationEngine(deps: {
         }
         case RuleKind.TEAM: {
           if (!input.teamSlug) {
-            return { ruleId: input.ruleId, roleId: '', status: MembershipStatus.ERROR, detail: 'team slug missing on TEAM rule' };
+            return {
+              ruleId: input.ruleId,
+              roleId: '',
+              status: MembershipStatus.ERROR,
+              detail: 'team slug missing on TEAM rule',
+            };
           }
-          const result = await checkTeamMembership(input.octokit, input.org, input.teamSlug, input.username);
+          const result = await checkTeamMembership(
+            input.octokit,
+            input.org,
+            input.teamSlug,
+            input.username,
+          );
           return {
             ruleId: input.ruleId,
             roleId: '',
@@ -143,18 +158,31 @@ export function createVerificationEngine(deps: {
           };
         }
         default:
-          return { ruleId: input.ruleId, roleId: '', status: MembershipStatus.ERROR, detail: 'unknown rule kind' };
+          return {
+            ruleId: input.ruleId,
+            roleId: '',
+            status: MembershipStatus.ERROR,
+            detail: 'unknown rule kind',
+          };
       }
     } catch (err) {
       log.warn(
         { err, ruleId: input.ruleId, kind: input.kind, org: input.org },
         'github membership check errored',
       );
-      return { ruleId: input.ruleId, roleId: '', status: MembershipStatus.ERROR, detail: 'github check errored' };
+      return {
+        ruleId: input.ruleId,
+        roleId: '',
+        status: MembershipStatus.ERROR,
+        detail: 'github check errored',
+      };
     }
   }
 
-  async function verifyUser(input: { discordUserId: string; guildId: string }): Promise<VerifySummary> {
+  async function verifyUser(input: {
+    discordUserId: string;
+    guildId: string;
+  }): Promise<VerifySummary> {
     const summary = emptySummary(input.guildId);
 
     const link = await prisma.githubLink.findUnique({
@@ -290,12 +318,30 @@ export function createVerificationEngine(deps: {
         );
         if (outcome.kind === 'removed') {
           summary.revoked.push(item.roleId);
-          await prisma.roleGrant.deleteMany({ where: { guildId: input.guildId, discordUserId: input.discordUserId, roleId: item.roleId, ruleId: item.ruleId } });
+          await prisma.roleGrant.deleteMany({
+            where: {
+              guildId: input.guildId,
+              discordUserId: input.discordUserId,
+              roleId: item.roleId,
+              ruleId: item.ruleId,
+            },
+          });
         } else if (outcome.kind === 'unchanged') {
           summary.kept.push(item.roleId);
-          await prisma.roleGrant.deleteMany({ where: { guildId: input.guildId, discordUserId: input.discordUserId, roleId: item.roleId, ruleId: item.ruleId } });
+          await prisma.roleGrant.deleteMany({
+            where: {
+              guildId: input.guildId,
+              discordUserId: input.discordUserId,
+              roleId: item.roleId,
+              ruleId: item.ruleId,
+            },
+          });
         } else {
-          summary.failures.push({ roleId: item.roleId, kind: outcome.kind, detail: outcome.detail });
+          summary.failures.push({
+            roleId: item.roleId,
+            kind: outcome.kind,
+            detail: outcome.detail,
+          });
         }
       }
     }

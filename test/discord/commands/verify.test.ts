@@ -93,7 +93,16 @@ describe('/verify', () => {
 
   it('uses singular wording for a single rule', async () => {
     const it = interaction(GUILD_ID);
-    const eng = engine({ checked: 1, passed: 1, failed: 0, errored: 0, granted: [], revoked: [], kept: [], failures: [] });
+    const eng = engine({
+      checked: 1,
+      passed: 1,
+      failed: 0,
+      errored: 0,
+      granted: [],
+      revoked: [],
+      kept: [],
+      failures: [],
+    });
 
     await executeVerify(it, { logger: makeLogger(), engine: eng });
 

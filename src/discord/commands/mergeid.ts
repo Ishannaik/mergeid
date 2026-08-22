@@ -4,6 +4,7 @@ import {
   SlashCommandSubcommandBuilder,
   MessageFlags,
   PermissionFlagsBits,
+  ChannelType,
 } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 
@@ -25,13 +26,17 @@ function rolesGroup(): SlashCommandSubcommandGroupBuilder {
       new SlashCommandSubcommandBuilder()
         .setName('add')
         .setDescription('Allow a role to be granted by verification rules')
-        .addRoleOption((o) => o.setName('role').setDescription('The role to allow').setRequired(true)),
+        .addRoleOption((o) =>
+          o.setName('role').setDescription('The role to allow').setRequired(true),
+        ),
     )
     .addSubcommand(
       new SlashCommandSubcommandBuilder()
         .setName('remove')
         .setDescription('Stop allowing a role to be granted by rules')
-        .addRoleOption((o) => o.setName('role').setDescription('The role to disallow').setRequired(true)),
+        .addRoleOption((o) =>
+          o.setName('role').setDescription('The role to disallow').setRequired(true),
+        ),
     )
     .addSubcommand(
       new SlashCommandSubcommandBuilder().setName('list').setDescription('List allowlisted roles'),
@@ -60,10 +65,16 @@ function rulesGroup(): SlashCommandSubcommandGroupBuilder {
           o.setName('role').setDescription('Role to grant when the check passes').setRequired(true),
         )
         .addStringOption((o) =>
-          o.setName('repo').setDescription('Repo name (REPO rules only), e.g. "api"').setRequired(false),
+          o
+            .setName('repo')
+            .setDescription('Repo name (REPO rules only), e.g. "api"')
+            .setRequired(false),
         )
         .addStringOption((o) =>
-          o.setName('team').setDescription('Team slug (TEAM rules only), e.g. "core-team"').setRequired(false),
+          o
+            .setName('team')
+            .setDescription('Team slug (TEAM rules only), e.g. "core-team"')
+            .setRequired(false),
         )
         .addIntegerOption((o) =>
           o
@@ -85,12 +96,65 @@ function rulesGroup(): SlashCommandSubcommandGroupBuilder {
     );
 }
 
+function settingsGroup(): SlashCommandSubcommandGroupBuilder {
+  return new SlashCommandSubcommandGroupBuilder()
+    .setName('settings')
+    .setDescription('View and change guild settings')
+    .addSubcommand(
+      new SlashCommandSubcommandBuilder()
+        .setName('show')
+        .setDescription('Show current MergeID settings'),
+    )
+    .addSubcommand(
+      new SlashCommandSubcommandBuilder()
+        .setName('protect-role')
+        .setDescription('Never let verification rules grant a role')
+        .addRoleOption((o) =>
+          o.setName('role').setDescription('The role to protect').setRequired(true),
+        ),
+    )
+    .addSubcommand(
+      new SlashCommandSubcommandBuilder()
+        .setName('unprotect-role')
+        .setDescription('Allow a protected role to be allowlisted again')
+        .addRoleOption((o) =>
+          o.setName('role').setDescription('The role to unprotect').setRequired(true),
+        ),
+    )
+    .addSubcommand(
+      new SlashCommandSubcommandBuilder()
+        .setName('log-channel')
+        .setDescription('Channel where MergeID posts sync failures (leave empty to clear)')
+        .addChannelOption((o) =>
+          o
+            .setName('channel')
+            .setDescription('The log channel; omit to clear')
+            .setRequired(false)
+            .addChannelTypes(ChannelType.GuildText),
+        ),
+    );
+}
+
 export const mergeidCommandData = new SlashCommandBuilder()
   .setName('mergeid')
   .setDescription('MergeID admin configuration')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addSubcommandGroup(rolesGroup())
-  .addSubcommandGroup(rulesGroup());
+  .addSubcommandGroup(rulesGroup())
+  .addSubcommandGroup(settingsGroup())
+  .addSubcommand(
+    new SlashCommandSubcommandBuilder()
+      .setName('audit')
+      .setDescription('Show recent admin and verification activity')
+      .addIntegerOption((o) =>
+        o
+          .setName('count')
+          .setDescription('How many events to show (default 10, max 25)')
+          .setRequired(false)
+          .setMinValue(1)
+          .setMaxValue(25),
+      ),
+  );
 
 function requireGuild(interaction: ChatInputCommandInteraction): string {
   if (!interaction.guildId) {
@@ -123,7 +187,12 @@ export async function executeMergeid(
       const role = interaction.options.getRole('role');
 
       if (sub === 'add') {
-        if (!role) throw new AppError('Pick a role with /mergeid roles add.', { code: 'role_required', statusCode: 400, expose: true });
+        if (!role)
+          throw new AppError('Pick a role with /mergeid roles add.', {
+            code: 'role_required',
+            statusCode: 400,
+            expose: true,
+          });
         await rules.addAssignableRole({ guildId, roleId: role.id, actorDiscordId: actor });
         await interaction.reply({
           content: `Allowed ${mention(role.id)} to be granted by verification rules. Rules referencing it can now be added with \`/mergeid rules add\`.`,
@@ -133,7 +202,12 @@ export async function executeMergeid(
       }
 
       if (sub === 'remove') {
-        if (!role) throw new AppError('Pick a role with /mergeid roles remove.', { code: 'role_required', statusCode: 400, expose: true });
+        if (!role)
+          throw new AppError('Pick a role with /mergeid roles remove.', {
+            code: 'role_required',
+            statusCode: 400,
+            expose: true,
+          });
         await rules.removeAssignableRole({ guildId, roleId: role.id, actorDiscordId: actor });
         await interaction.reply({
           content: `Removed ${mention(role.id)} from the allowlist. Existing rules still reference it until removed.`,
@@ -165,7 +239,12 @@ export async function executeMergeid(
         const role = interaction.options.getRole('role');
         const recheck = interaction.options.getInteger('recheck') ?? undefined;
 
-        if (!role) throw new AppError('Pick a role with /mergeid rules add.', { code: 'role_required', statusCode: 400, expose: true });
+        if (!role)
+          throw new AppError('Pick a role with /mergeid rules add.', {
+            code: 'role_required',
+            statusCode: 400,
+            expose: true,
+          });
 
         const rule = await rules.addRule({
           guildId,
@@ -235,8 +314,97 @@ export async function executeMergeid(
       }
     }
 
+    if (group === 'settings') {
+      if (sub === 'show') {
+        const settings = await rules.getSettings(guildId);
+        const lines = [
+          `**Allowlisted roles:** ${
+            settings.assignableRoles.length
+              ? settings.assignableRoles.map(mention).join(', ')
+              : 'none'
+          }`,
+          `**Protected roles:** ${
+            settings.protectedRoleIds.length
+              ? settings.protectedRoleIds.map(mention).join(', ')
+              : 'none'
+          }`,
+          `**Log channel:** ${settings.logChannelId ? `<#${settings.logChannelId}>` : 'not set'}`,
+        ];
+        await interaction.reply({ content: lines.join('\n'), flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      if (sub === 'protect-role' || sub === 'unprotect-role') {
+        const role = interaction.options.getRole('role');
+        if (!role) {
+          throw new AppError('Pick a role with /mergeid settings protect-role.', {
+            code: 'role_required',
+            statusCode: 400,
+            expose: true,
+          });
+        }
+        if (sub === 'protect-role') {
+          await rules.addProtectedRole({ guildId, roleId: role.id, actorDiscordId: actor });
+          await interaction.reply({
+            content: `Protected ${mention(role.id)}. Verification rules can no longer grant it; it was also removed from the allowlist if it was there.`,
+            flags: MessageFlags.Ephemeral,
+          });
+        } else {
+          await rules.removeProtectedRole({
+            guildId: guildId,
+            roleId: role.id,
+            actorDiscordId: actor,
+          });
+          await interaction.reply({
+            content: `Unprotected ${mention(role.id)}. It can be added back to the allowlist with \`/mergeid roles add\`.`,
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+        return;
+      }
+
+      if (sub === 'log-channel') {
+        const channel = interaction.options.getChannel('channel');
+        await rules.setLogChannel({
+          guildId,
+          channelId: channel?.id ?? null,
+          actorDiscordId: actor,
+        });
+        await interaction.reply({
+          content: channel
+            ? `Log channel set to <#${channel.id}>. Sync failures will post there.`
+            : 'Log channel cleared.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+    }
+
+    if (group === null && sub === 'audit') {
+      const count = interaction.options.getInteger('count') ?? 10;
+      const events = await rules.listAuditEvents({ guildId, limit: count });
+      if (events.length === 0) {
+        await interaction.reply({
+          content: 'No audit events in this server yet. Rule and settings changes appear here.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+      const lines = events.map((event) => {
+        const when = `<t:${Math.floor(event.at.getTime() / 1000)}:R>`;
+        const who = event.actorDiscordId ? `<@${event.actorDiscordId}>` : 'system';
+        return `${when} · ${who} · \`${event.action}\`${event.subject ? ` · \`${event.subject.slice(0, 16)}\`` : ''}`;
+      });
+      await interaction.reply({
+        content: [`**Recent audit events (${events.length}):**`, ...lines].join('\n'),
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
     await interaction.reply({
-      content: 'Usage: `/mergeid roles add|remove|list` and `/mergeid rules add|list|remove`.',
+      content:
+        'Usage: `/mergeid roles add|remove|list`, `/mergeid rules add|list|remove`, `/mergeid settings show|protect-role|unprotect-role|log-channel`, `/mergeid audit`.',
       flags: MessageFlags.Ephemeral,
     });
   } catch (err) {

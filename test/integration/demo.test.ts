@@ -37,7 +37,9 @@ const octokitMock = vi.hoisted(() => ({
 vi.mock('@octokit/rest', () => ({
   Octokit: class {
     users = { getAuthenticated: octokitMock.getAuthenticated };
-    orgs = { getMembershipForAuthenticatedUser: octokitMock.orgs.getMembershipForAuthenticatedUser };
+    orgs = {
+      getMembershipForAuthenticatedUser: octokitMock.orgs.getMembershipForAuthenticatedUser,
+    };
     repos = { get: octokitMock.repos.get };
     teams = { getMembershipForUserInOrg: octokitMock.teams.getMembershipForUserInOrg };
   },
@@ -85,10 +87,20 @@ describeMaybe('MergeID M3 — live feature demo', () => {
 
       // ---- Step 1: admin allowlists roles (what /mergeid roles add does) ----
       log(`▶ STEP 1 — admin allowlists the Contributor + Maintainer roles`);
-      await rules.addAssignableRole({ guildId: GUILD_ID, roleId: CONTRIBUTOR_ROLE, actorDiscordId: 'demo-admin' });
-      await rules.addAssignableRole({ guildId: GUILD_ID, roleId: MAINTAINER_ROLE, actorDiscordId: 'demo-admin' });
+      await rules.addAssignableRole({
+        guildId: GUILD_ID,
+        roleId: CONTRIBUTOR_ROLE,
+        actorDiscordId: 'demo-admin',
+      });
+      await rules.addAssignableRole({
+        guildId: GUILD_ID,
+        roleId: MAINTAINER_ROLE,
+        actorDiscordId: 'demo-admin',
+      });
       const settings = await rules.getSettings(GUILD_ID);
-      log(`   allowlist now: ${settings.assignableRoles.length} role(s) — ${settings.assignableRoles.join(', ')}`);
+      log(
+        `   allowlist now: ${settings.assignableRoles.length} role(s) — ${settings.assignableRoles.join(', ')}`,
+      );
 
       // ---- Step 2: admin adds rules (what /mergeid rules add does) ----
       log(`▶ STEP 2 — admin adds two rules`);
@@ -132,42 +144,62 @@ describeMaybe('MergeID M3 — live feature demo', () => {
 
       // ---- Step 4: initial verification runs (what the callback triggers) ----
       octokitMock.getAuthenticated.mockResolvedValue({ data: { login: 'octocat-demo' } });
-      octokitMock.orgs.getMembershipForAuthenticatedUser.mockResolvedValue({ data: { state: 'active' } });
-      octokitMock.repos.get.mockResolvedValue({ data: { permissions: { push: true, pull: true } } });
+      octokitMock.orgs.getMembershipForAuthenticatedUser.mockResolvedValue({
+        data: { state: 'active' },
+      });
+      octokitMock.repos.get.mockResolvedValue({
+        data: { permissions: { push: true, pull: true } },
+      });
       roleApplier.sync.mockImplementation(async (_t: unknown, _r: string, shouldHave: boolean) =>
         shouldHave ? { kind: 'granted', ok: true } : { kind: 'removed', ok: true },
       );
 
       log(`▶ STEP 4 — GitHub reports: org member ✓, push access ✓ — engine reconciles`);
       const first = await engine.verifyUser({ discordUserId: DEMO_USER, guildId: GUILD_ID });
-      log(`   checked ${first.checked} · passed ${first.passed} · granted ${first.granted.length} role(s)`);
+      log(
+        `   checked ${first.checked} · passed ${first.passed} · granted ${first.granted.length} role(s)`,
+      );
       expect(first.granted).toEqual(expect.arrayContaining([CONTRIBUTOR_ROLE, MAINTAINER_ROLE]));
 
-      const grants = await prisma.roleGrant.findMany({ where: { guildId: GUILD_ID, discordUserId: DEMO_USER } });
+      const grants = await prisma.roleGrant.findMany({
+        where: { guildId: GUILD_ID, discordUserId: DEMO_USER },
+      });
       log(`   role_grants persisted: ${grants.map((g) => g.roleId).join(', ')}`);
 
       // ---- Step 5: user leaves the org — GitHub reports FAIL, engine revokes ----
-      octokitMock.orgs.getMembershipForAuthenticatedUser.mockResolvedValue({ data: { state: 'pending' } });
+      octokitMock.orgs.getMembershipForAuthenticatedUser.mockResolvedValue({
+        data: { state: 'pending' },
+      });
       log(`▶ STEP 5 — GitHub now reports: NOT in org. Engine re-verifies and revokes.`);
       const second = await engine.verifyUser({ discordUserId: DEMO_USER, guildId: GUILD_ID });
-      log(`   checked ${second.checked} · failed ${second.failed} · revoked ${second.revoked.length} role(s)`);
+      log(
+        `   checked ${second.checked} · failed ${second.failed} · revoked ${second.revoked.length} role(s)`,
+      );
       expect(second.revoked).toEqual(expect.arrayContaining([CONTRIBUTOR_ROLE]));
 
       // ---- Step 6: GitHub outage — ERROR keeps last-known state ----
-      octokitMock.orgs.getMembershipForAuthenticatedUser.mockRejectedValue(new Error('rate limited'));
+      octokitMock.orgs.getMembershipForAuthenticatedUser.mockRejectedValue(
+        new Error('rate limited'),
+      );
       log(`▶ STEP 6 — GitHub API errors (rate limit). Engine must NOT flip roles.`);
       const third = await engine.verifyUser({ discordUserId: DEMO_USER, guildId: GUILD_ID });
-      log(`   errored ${third.errored} · granted ${third.granted.length} · revoked ${third.revoked.length} (last-known state kept)`);
+      log(
+        `   errored ${third.errored} · granted ${third.granted.length} · revoked ${third.revoked.length} (last-known state kept)`,
+      );
       expect(third.errored).toBeGreaterThan(0);
       expect(third.revoked).toHaveLength(0);
 
       // ---- Step 7: admin lists rules (what /mergeid rules list shows) ----
       log(`▶ STEP 7 — /mergeid rules list would show:`);
       for (const r of await rules.listRules(GUILD_ID)) {
-        log(`   ${r.id.slice(0, 8)}…  ${r.kind} ${r.org}${r.repo ? '/' + r.repo : ''}${r.teamSlug ? '/' + r.teamSlug : ''} → ${r.roleId}`);
+        log(
+          `   ${r.id.slice(0, 8)}…  ${r.kind} ${r.org}${r.repo ? '/' + r.repo : ''}${r.teamSlug ? '/' + r.teamSlug : ''} → ${r.roleId}`,
+        );
       }
 
-      console.log('\n  ✅ DEMO COMPLETE — engine decisions, persistence, and audit all real against Postgres');
+      console.log(
+        '\n  ✅ DEMO COMPLETE — engine decisions, persistence, and audit all real against Postgres',
+      );
     } finally {
       await cleanup();
     }

@@ -147,7 +147,10 @@ export function registerOAuthRoutes(
           if (summary.notVerified === 'no_rules') {
             verifyNote =
               'This server has no verification rules yet — an admin can add them with /mergeid rules add.';
-          } else if (summary.notVerified !== 'not_linked' && summary.notVerified !== 'token_unavailable') {
+          } else if (
+            summary.notVerified !== 'not_linked' &&
+            summary.notVerified !== 'token_unavailable'
+          ) {
             const granted = summary.granted.length;
             const removed = summary.revoked.length;
             verifyNote =
