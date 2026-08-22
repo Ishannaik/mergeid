@@ -8,7 +8,7 @@
 
 import { Prisma } from '../generated/prisma/client.js';
 
-import { encryptToken, decryptToken } from '../crypto/index.js';
+import type { TokenCrypto } from '../crypto/index.js';
 import { AppError } from '../lib/errors.js';
 import type { PrismaClient } from '../lib/prisma.js';
 import type { Config } from '../config/index.js';
@@ -34,8 +34,13 @@ export interface LinkStatus {
   lastVerifiedAt?: Date | null;
 }
 
-export function createLinkService(deps: { prisma: PrismaClient; config: Config; logger: Logger }) {
-  const { prisma, config, logger } = deps;
+export function createLinkService(deps: {
+  prisma: PrismaClient;
+  config: Config;
+  logger: Logger;
+  tokenCrypto: TokenCrypto;
+}) {
+  const { prisma, config, logger, tokenCrypto } = deps;
 
   async function ensureUser(discordUserId: string): Promise<void> {
     await prisma.user.upsert({
@@ -118,10 +123,7 @@ export function createLinkService(deps: { prisma: PrismaClient; config: Config; 
         );
       }
 
-      const tokenEncrypted = encryptToken(input.accessToken, {
-        keyHex: config.TOKEN_ENCRYPTION_KEY,
-        keyVersion: config.TOKEN_ENCRYPTION_KEY_VERSION,
-      });
+      const tokenEncrypted = tokenCrypto.encrypt(input.accessToken);
 
       try {
         const link = await prisma.githubLink.create({
@@ -168,9 +170,7 @@ export function createLinkService(deps: { prisma: PrismaClient; config: Config; 
 
       let accessToken: string | null = null;
       try {
-        accessToken = decryptToken(link.tokenEncrypted, {
-          keyHex: config.TOKEN_ENCRYPTION_KEY,
-        });
+        accessToken = tokenCrypto.decrypt(link.tokenEncrypted);
       } catch (err) {
         logger.error({ err }, 'failed to decrypt token during unlink; continuing with delete');
       }

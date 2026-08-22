@@ -1,11 +1,15 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { createVerificationEngine } from '../../src/verification/engine.js';
-import { encryptToken } from '../../src/crypto/index.js';
+import { createTokenCrypto } from '../../src/crypto/index.js';
 import type { Config } from '../../src/config/index.js';
 import { makeLogger } from '../discord/fixtures.js';
 
 const KEY = '0'.repeat(64);
+
+/** Main-line token crypto bound to the test key. */
+const makeCrypto = () =>
+  createTokenCrypto({ active: { version: 1, key: KEY } });
 const GUILD = '111111111111111111';
 const USER = '333333333333333333';
 const ROLE_A = '444444444444444444';
@@ -84,7 +88,7 @@ function setup(options: SetupOptions = {}) {
           id: 'link-1',
           githubUserId: '12345',
           githubLogin: 'octocat',
-          tokenEncrypted: encryptToken('gho_test', { keyHex: KEY, keyVersion: '1' }),
+          tokenEncrypted: makeCrypto().encrypt('gho_test'),
           tokenScopes: options.scopes ?? 'read:user,read:org',
           lastVerifiedAt: null,
           ...(options.link ?? {}),
@@ -100,6 +104,7 @@ function setup(options: SetupOptions = {}) {
     logger: makeLogger(),
     rules: rulesSvc,
     roles,
+    tokenCrypto: makeCrypto(),
   });
 
   return { engine, prisma, rulesSvc, roles };

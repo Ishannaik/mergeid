@@ -17,7 +17,7 @@
 
 import { Octokit } from '@octokit/rest';
 
-import { decryptToken } from '../crypto/index.js';
+import type { TokenCrypto } from '../crypto/index.js';
 import {
   checkOrgMembership,
   checkRepoPushAccess,
@@ -61,6 +61,7 @@ export function createVerificationEngine(deps: {
   logger: Logger;
   rules: RulesService;
   roles: RuleRoleService;
+  tokenCrypto: TokenCrypto;
 }) {
   const { prisma, config, logger } = deps;
   const log = logger.child({ component: 'verification' });
@@ -166,7 +167,7 @@ export function createVerificationEngine(deps: {
 
     let accessToken: string;
     try {
-      accessToken = decryptToken(link.tokenEncrypted, { keyHex: config.TOKEN_ENCRYPTION_KEY });
+      accessToken = deps.tokenCrypto.decrypt(link.tokenEncrypted);
     } catch (err) {
       log.error({ err, userId: input.discordUserId }, 'failed to decrypt token for verification');
       return { ...summary, notVerified: 'token_unavailable' };

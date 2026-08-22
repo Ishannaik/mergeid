@@ -48,6 +48,20 @@ export interface StartBotOptions {
 const createClient = (options: ClientOptions): GatewayClient => new Client(options);
 
 /**
+ * The gateway client of the most recently booted bot role, if any.
+ *
+ * Role services (linked-role grant, rule-role sync) run inside command
+ * handlers that fire after boot, so a module-level holder is enough — no
+ * service needs the client at construction time.
+ */
+let activeClient: Client | null = null;
+
+/** Returns the booted Discord gateway client, or null before bot boot. */
+export function getGatewayClient(): Client | null {
+  return activeClient;
+}
+
+/**
  * Boots the Discord gateway client.
  *
  * Connects with the `Guilds` intent only, routes application-command
@@ -93,6 +107,7 @@ export async function startBot(options?: StartBotOptions): Promise<RuntimeRole> 
 
   try {
     await client.login(config.token);
+    activeClient = client as Client;
   } catch (error) {
     await cleanup();
     throw error;
@@ -100,6 +115,9 @@ export async function startBot(options?: StartBotOptions): Promise<RuntimeRole> 
 
   return {
     name: 'bot',
-    stop: cleanup,
+    stop: async () => {
+      await cleanup();
+      activeClient = null;
+    },
   };
 }

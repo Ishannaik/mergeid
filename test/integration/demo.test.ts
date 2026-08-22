@@ -15,6 +15,7 @@ import { createPrismaClient } from '../../src/lib/prisma.js';
 import { createLinkService, createRulesService } from '../../src/services/index.js';
 import { createVerificationEngine } from '../../src/verification/engine.js';
 import { makeLogger } from '../discord/fixtures.js';
+import { createTokenCrypto } from '../../src/crypto/index.js';
 
 const DEMO_USER = '999999999999999999';
 const GUILD_ID = process.env.DISCORD_DEV_GUILD_ID ?? '1529918028236455967';
@@ -51,6 +52,7 @@ describeMaybe('MergeID M3 — live feature demo', () => {
     const rules = createRulesService({ prisma, logger: makeLogger() });
     const roleApplier = { sync: vi.fn() };
 
+    const tokenCrypto = createTokenCrypto({ active: { version: 1, key: KEY } });
     const config = { TOKEN_ENCRYPTION_KEY: KEY } as never;
     const engine = createVerificationEngine({
       prisma,
@@ -58,6 +60,7 @@ describeMaybe('MergeID M3 — live feature demo', () => {
       logger: makeLogger(),
       rules,
       roles: roleApplier,
+      tokenCrypto,
     } as never);
 
     const createdRuleIds: string[] = [];
@@ -111,10 +114,12 @@ describeMaybe('MergeID M3 — live feature demo', () => {
 
       // ---- Step 3: member links GitHub (what /link + OAuth callback do) ----
       log(`▶ STEP 3 — member completes OAuth; link persisted (encrypted token)`);
+      const tokenCrypto = createTokenCrypto({ active: { version: 1, key: KEY } });
       const links = createLinkService({
         prisma,
         config: { TOKEN_ENCRYPTION_KEY: KEY, TOKEN_ENCRYPTION_KEY_VERSION: '1' } as never,
         logger: makeLogger(),
+        tokenCrypto,
       });
       await links.createLink({
         discordUserId: DEMO_USER,

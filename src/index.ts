@@ -7,6 +7,7 @@
 
 import { loadConfig, loadDotenv } from './config/index.js';
 import { createLogger } from './lib/logger.js';
+import { createTokenCrypto } from './crypto/index.js';
 import { createPrismaClient } from './lib/prisma.js';
 import { createRedisClient } from './lib/redis.js';
 import { createRedisOAuthStateStore } from './oauth/index.js';
@@ -22,6 +23,11 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const logger = createLogger(config);
 
+  // Versioned AES-256-GCM crypto for stored GitHub tokens (docs/security-model.md §2).
+  const tokenCrypto = createTokenCrypto({
+    active: { version: Number(config.TOKEN_ENCRYPTION_KEY_VERSION), key: config.TOKEN_ENCRYPTION_KEY },
+  });
+
   const roles = new Set<RuntimeRole>(config.MERGEID_ROLES);
   logger.info({ roles: [...roles] }, 'starting mergeid');
 
@@ -29,7 +35,7 @@ async function main(): Promise<void> {
   const prisma = needsDataPlane ? createPrismaClient(config) : null;
   const redis = needsDataPlane ? createRedisClient(config, logger) : null;
   const oauthState = redis ? createRedisOAuthStateStore(redis) : null;
-  const links = prisma && logger ? createLinkService({ prisma, config, logger }) : null;
+  const links = prisma && logger ? createLinkService({ prisma, config, logger, tokenCrypto }) : null;
   const rules = prisma && logger ? createRulesService({ prisma, logger }) : null;
 
   // Late-bound: the api role starts before the gateway client exists, and the
@@ -48,7 +54,7 @@ async function main(): Promise<void> {
   });
   const engine =
     prisma && rules && config && logger
-      ? createVerificationEngine({ prisma, config, logger, rules, roles: ruleRoles })
+      ? createVerificationEngine({ prisma, config, logger, rules, roles: ruleRoles, tokenCrypto })
       : null;
 
   if (config.MERGEID_LINKED_ROLE_ID && !roles.has('bot')) {
@@ -83,8 +89,8 @@ async function main(): Promise<void> {
       throw new Error('bot role requires database, redis, rules, and verification engine');
     }
     const { startBot } = await import('./discord/client.js');
-    const bot = await startBot({ config, logger, oauthState, links, linkedRoles, rules, engine });
-    botClient = bot.client;
+    const bot = await startBot();
+    void bot;
     shutdownHandlers.push(bot.stop);
   }
 
