@@ -8,7 +8,7 @@ import {
 
 import { logger } from '../lib/logger.js';
 import type { RuntimeRole } from '../lib/runtime.js';
-import { commands, type DiscordCommand } from './commands/index.js';
+import { createRegistry, commands, type CommandDeps, type DiscordCommand } from './commands/index.js';
 import { createInteractionHandler, type InteractionLogger } from './events/interaction-create.js';
 import { readDiscordConfig } from './config.js';
 
@@ -39,7 +39,10 @@ interface GatewayClient {
 /** Injection seam for the gateway bootstrap. */
 export interface StartBotOptions {
   readonly config?: DiscordConfig;
+  /** Pre-built command registry. Overrides `commandDeps` when both are given. */
   readonly commandList?: readonly DiscordCommand[];
+  /** Live services used to build the wired registry when `commandList` is absent. */
+  readonly commandDeps?: CommandDeps;
   readonly clientFactory?: (options: ClientOptions) => GatewayClient;
   readonly log?: InteractionLogger;
 }
@@ -74,7 +77,11 @@ export function getGatewayClient(): Client | null {
  */
 export async function startBot(options?: StartBotOptions): Promise<RuntimeRole> {
   const config = options?.config ?? readDiscordConfig();
-  const commandList = options?.commandList ?? commands;
+  // The wired registry closes over live services; tests may inject a fixed
+  // commandList instead. Without commandDeps (e.g. a bare boot in isolation)
+  // the fallback is the inert registry — dispatch would warn "unregistered
+  // command" rather than crash, which is the safer failure.
+  const commandList = options?.commandList ?? (options?.commandDeps ? createRegistry(options.commandDeps) : commands);
   const log = options?.log ?? logger;
   const clientFactory = options?.clientFactory ?? createClient;
 

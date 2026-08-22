@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 
 import type { LinkService } from '../../services/index.js';
@@ -13,10 +13,7 @@ export async function executeStatus(
 ): Promise<void> {
   const status = await deps.links.getStatus(interaction.user.id);
   if (!status.linked) {
-    await interaction.reply({
-      content: 'Not linked. Run `/link` to connect your GitHub account.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.editReply('Not linked. Run `/link` to connect your GitHub account.');
     return;
   }
 
@@ -24,13 +21,12 @@ export async function executeStatus(
   const linkedAt = status.linkedAt?.toISOString() ?? 'unknown';
   const lastVerified = status.lastVerifiedAt?.toISOString() ?? 'never';
 
-  await interaction.reply({
-    content: [
+  await interaction.editReply(
+    [
       `**GitHub:** @${status.githubLogin} (\`${status.githubUserId}\`)`,
       `**Scopes:** ${scopes}`,
       `**Linked at:** ${linkedAt}`,
       `**Last verified:** ${lastVerified}`,
     ].join('\n'),
-    flags: MessageFlags.Ephemeral,
-  });
+  );
 }

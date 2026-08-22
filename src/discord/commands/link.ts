@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 
 import { buildAuthorizeUrl } from '../../github/index.js';
@@ -64,14 +64,14 @@ export async function executeLink(
       }
     }
 
-    await interaction.reply({
-      content: [
+    // The router already deferred ephemerally; complete that initial reply.
+    await interaction.editReply(
+      [
         `Already linked to GitHub **@${status.githubLogin}**. Use \`/unlink\` first to switch accounts.`,
         ...(note ? ['', note] : []),
         ...(verifyNote ? ['', `**Verification:** ${verifyNote}`] : []),
       ].join('\n'),
-      flags: MessageFlags.Ephemeral,
-    });
+    );
     return;
   }
 
@@ -83,13 +83,12 @@ export async function executeLink(
     codeChallenge: issued.codeChallenge,
   });
 
-  await interaction.reply({
-    content: [
+  await interaction.editReply(
+    [
       'Click the link below to authorize MergeID with GitHub.',
       'This link is personal, expires in 10 minutes, and is only visible to you.',
       '',
       url,
     ].join('\n'),
-    flags: MessageFlags.Ephemeral,
-  });
+  );
 }

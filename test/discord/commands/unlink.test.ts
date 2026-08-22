@@ -24,14 +24,16 @@ function interaction(guildId: string | null, member: unknown): ChatInputCommandI
     guildId,
     member,
     reply: vi.fn(),
+    editReply: vi.fn(async (payload: unknown) => payload),
   } as unknown as ChatInputCommandInteraction;
 }
 
 /** Content of the single ephemeral reply the command sent. */
 function replyContent(it: ChatInputCommandInteraction): string {
-  const reply = it.reply as unknown as ReturnType<typeof vi.fn>;
-  expect(reply).toHaveBeenCalledTimes(1);
-  return (reply.mock.calls[0]?.[0] as { content: string }).content;
+  const editReply = it.editReply as unknown as ReturnType<typeof vi.fn>;
+  expect(editReply).toHaveBeenCalledTimes(1);
+  const first = editReply.mock.calls[0]?.[0];
+  return typeof first === 'string' ? first : (first as { content: string }).content;
 }
 
 describe('/unlink linked-role removal', () => {

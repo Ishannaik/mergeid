@@ -95,7 +95,17 @@ async function main(): Promise<void> {
       throw new Error('bot role requires database, redis, rules, and verification engine');
     }
     const { startBot } = await import('./discord/client.js');
-    const bot = await startBot();
+    const bot = await startBot({
+      commandDeps: {
+        config,
+        logger,
+        oauthState,
+        links,
+        linkedRoles,
+        rules,
+        engine,
+      },
+    });
     shutdownHandlers.push(async () => {
       await bot.stop();
     });

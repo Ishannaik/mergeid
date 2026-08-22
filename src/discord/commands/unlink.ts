@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 
 import { describeRoleOutcome, type LinkedRoleService } from '../roles.js';
@@ -15,10 +15,7 @@ export async function executeUnlink(
 ): Promise<void> {
   const result = await deps.links.unlink(interaction.user.id);
   if (!result.unlinked) {
-    await interaction.reply({
-      content: 'No GitHub account is linked to your Discord user.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.editReply('No GitHub account is linked to your Discord user.');
     return;
   }
 
@@ -37,11 +34,10 @@ export async function executeUnlink(
   }
   const note = describeRoleOutcome(outcome, 'revoke');
 
-  await interaction.reply({
-    content: [
+  await interaction.editReply(
+    [
       'Unlinked. Your GitHub token was revoked and local link data was deleted. Run `/link` to connect again.',
       ...(note ? ['', note] : []),
     ].join('\n'),
-    flags: MessageFlags.Ephemeral,
-  });
+  );
 }

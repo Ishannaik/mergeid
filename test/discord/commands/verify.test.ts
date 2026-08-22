@@ -30,15 +30,15 @@ function contentOf(fn: ReturnType<typeof vi.fn>): string {
 }
 
 describe('/verify', () => {
-  it('replies without deferring when run in a DM', async () => {
+  it('replies via editReply when run in a DM (router already deferred)', async () => {
     const it = interaction(null);
     const eng = engine({});
 
     await executeVerify(it, { logger: makeLogger(), engine: eng });
 
-    expect(it.reply).toHaveBeenCalledTimes(1);
+    expect(it.editReply).toHaveBeenCalledTimes(1);
     expect(it.deferReply).not.toHaveBeenCalled();
-    expect(contentOf(it.reply as ReturnType<typeof vi.fn>)).toContain('/verify');
+    expect(contentOf(it.editReply as ReturnType<typeof vi.fn>)).toContain('/verify');
     expect(eng.verifyUser).not.toHaveBeenCalled();
   });
 

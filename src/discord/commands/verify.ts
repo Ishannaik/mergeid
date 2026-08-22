@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 
 import type { VerificationEngine } from '../../verification/engine.js';
@@ -13,14 +13,12 @@ export async function executeVerify(
   deps: { logger: Logger; engine: VerificationEngine },
 ): Promise<void> {
   if (!interaction.guildId) {
-    await interaction.reply({
-      content: 'Run `/verify` inside a server — it checks the rules configured for that server.',
-      flags: MessageFlags.Ephemeral,
-    });
+    // The router already deferred ephemerally; complete that initial reply.
+    await interaction.editReply(
+      'Run `/verify` inside a server — it checks the rules configured for that server.',
+    );
     return;
   }
-
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const summary = await deps.engine.verifyUser({
     discordUserId: interaction.user.id,

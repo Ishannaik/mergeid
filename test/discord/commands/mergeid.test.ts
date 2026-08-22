@@ -41,16 +41,16 @@ function interaction(options: {
       getChannel: (name: string) => (name === 'channel' ? (options.channel ?? null) : null),
       getInteger: (name: string) => (name === 'count' ? (options.count ?? null) : null),
     },
-    reply: vi.fn(async (payload: unknown) => {
+    editReply: vi.fn(async (payload: unknown) => {
       replies.push(payload);
     }),
   } as unknown as ChatInputCommandInteraction;
 }
 
 function contentOf(it: ChatInputCommandInteraction): string {
-  const reply = (it as unknown as { reply: Mock }).reply;
-  const arg = reply.mock.calls[0]?.[0] as { content: string };
-  return arg.content;
+  const editReply = (it as unknown as { editReply: Mock }).editReply;
+  const arg = editReply.mock.calls[0]?.[0];
+  return typeof arg === 'string' ? arg : (arg as { content: string }).content;
 }
 
 describe('/mergeid settings show', () => {
