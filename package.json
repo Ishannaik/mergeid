@@ -1,6 +1,6 @@
 {
   "name": "mergeid",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "MergeID — Discord bot that securely links and verifies GitHub accounts with Discord accounts.",
   "license": "MIT",
