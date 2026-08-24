@@ -31,6 +31,11 @@ jobs:
         if: hashFiles('.changeset/config.json') != ''
         with:
           version: pnpm changeset version
+          # Git-tag based releases only - no npm publish.
           publish: pnpm changeset tag
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The action does not reliably push tags created by the publish script
+      # under pnpm, so push them explicitly.
+      - run: git push origin --tags
