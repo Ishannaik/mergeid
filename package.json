@@ -17,7 +17,7 @@
     "start:local": "node --env-file=.env dist/index.js",
     "typecheck": "prisma generate && tsc --noEmit",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test",
-    "lint": "eslint . --max-warnings 0",
+    "lint": "prisma generate && eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
