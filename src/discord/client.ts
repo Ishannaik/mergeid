@@ -8,7 +8,12 @@ import {
 
 import { logger } from '../lib/logger.js';
 import type { RuntimeRole } from '../lib/runtime.js';
-import { createRegistry, commands, type CommandDeps, type DiscordCommand } from './commands/index.js';
+import {
+  createRegistry,
+  commands,
+  type CommandDeps,
+  type DiscordCommand,
+} from './commands/index.js';
 import { createInteractionHandler, type InteractionLogger } from './events/interaction-create.js';
 import { readDiscordConfig } from './config.js';
 
@@ -81,7 +86,8 @@ export async function startBot(options?: StartBotOptions): Promise<RuntimeRole> 
   // commandList instead. Without commandDeps (e.g. a bare boot in isolation)
   // the fallback is the inert registry — dispatch would warn "unregistered
   // command" rather than crash, which is the safer failure.
-  const commandList = options?.commandList ?? (options?.commandDeps ? createRegistry(options.commandDeps) : commands);
+  const commandList =
+    options?.commandList ?? (options?.commandDeps ? createRegistry(options.commandDeps) : commands);
   const log = options?.log ?? logger;
   const clientFactory = options?.clientFactory ?? createClient;
 

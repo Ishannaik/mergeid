@@ -194,7 +194,7 @@ describe('E2E OAuth flow — /link to verified roles', () => {
     vi.restoreAllMocks();
   });
 
-  function makeEngineDeps(bundle: ReturnType<typeof makeGuild>) {
+  function makeEngineDeps() {
     const prisma = makePrisma();
     const tokenCrypto = createTokenCrypto({
       active: { version: 1, key: 'a'.repeat(64) },
@@ -305,7 +305,7 @@ describe('E2E OAuth flow — /link to verified roles', () => {
 
   it('completes the full happy path: link → role → verification → page', async () => {
     const bundle = makeGuild({ guildId: GUILD_ID });
-    const { engine, applied, seedLink } = makeEngineDeps(bundle);
+    const { engine, applied, seedLink } = makeEngineDeps();
 
     const { res, createdLinks } = await runFlow({
       guildId: GUILD_ID,
@@ -449,7 +449,7 @@ describe('E2E OAuth flow — /link to verified roles', () => {
       roles: [makeRole({ id: LINKED_ROLE, position: 90 })],
       botHighestPosition: 5,
     });
-    const { engine } = makeEngineDeps(bundle);
+    const { engine } = makeEngineDeps();
     const { res, createdLinks } = await runFlow({
       guildId: GUILD_ID,
       engine,

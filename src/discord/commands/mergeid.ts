@@ -198,7 +198,9 @@ export async function executeMergeid(
             expose: true,
           });
         await rules.addAssignableRole({ guildId, roleId: role.id, actorDiscordId: actor });
-        await interaction.editReply(`Allowed ${mention(role.id)} to be granted by verification rules. Rules referencing it can now be added with \`/mergeid rules add\`.`);
+        await interaction.editReply(
+          `Allowed ${mention(role.id)} to be granted by verification rules. Rules referencing it can now be added with \`/mergeid rules add\`.`,
+        );
         return;
       }
 
@@ -210,16 +212,20 @@ export async function executeMergeid(
             expose: true,
           });
         await rules.removeAssignableRole({ guildId, roleId: role.id, actorDiscordId: actor });
-        await interaction.editReply(`Removed ${mention(role.id)} from the allowlist. Existing rules still reference it until removed.`);
+        await interaction.editReply(
+          `Removed ${mention(role.id)} from the allowlist. Existing rules still reference it until removed.`,
+        );
         return;
       }
 
       if (sub === 'list') {
         const settings = await rules.getSettings(guildId);
         const ids = settings.assignableRoles;
-        await interaction.editReply(ids.length === 0
-              ? 'No roles are allowlisted yet. Add one with `/mergeid roles add`.'
-              : `**Allowlisted roles:** ${ids.map(mention).join(', ')}`);
+        await interaction.editReply(
+          ids.length === 0
+            ? 'No roles are allowlisted yet. Add one with `/mergeid roles add`.'
+            : `**Allowlisted roles:** ${ids.map(mention).join(', ')}`,
+        );
         return;
       }
     }
@@ -258,18 +264,22 @@ export async function executeMergeid(
               ? `repo **${rule.org}/${rule.repo}**`
               : `team **${rule.org}/${rule.teamSlug}**`;
 
-        await interaction.editReply([
+        await interaction.editReply(
+          [
             `✅ Rule added (\`${rule.id.slice(0, 8)}…\`)`,
             `When a linked member is in ${target}, they get ${mention(rule.roleId)}.`,
             `Re-check every ${rule.recheckMinutes} min. Members run \`/verify\` (or re-link) to apply it now.`,
-          ].join('\n'));
+          ].join('\n'),
+        );
         return;
       }
 
       if (sub === 'list') {
         const all = await rules.listRules(guildId);
         if (all.length === 0) {
-          await interaction.editReply('No verification rules in this server. Add one with `/mergeid rules add`.');
+          await interaction.editReply(
+            'No verification rules in this server. Add one with `/mergeid rules add`.',
+          );
           return;
         }
         const lines = all.map((rule) => {
@@ -282,16 +292,20 @@ export async function executeMergeid(
           const state = rule.enabled ? '' : ' (disabled)';
           return `\`${rule.id.slice(0, 8)}…\` · ${target} → ${mention(rule.roleId)} · every ${rule.recheckMinutes} min${state}`;
         });
-        await interaction.editReply([`**Verification rules (${all.length}):**`, ...lines].join('\n'));
+        await interaction.editReply(
+          [`**Verification rules (${all.length}):**`, ...lines].join('\n'),
+        );
         return;
       }
 
       if (sub === 'remove') {
         const ruleId = interaction.options.getString('rule', true);
         const result = await rules.removeRule({ guildId, ruleId, actorDiscordId: actor });
-        await interaction.editReply(result.removed
+        await interaction.editReply(
+          result.removed
             ? `Removed rule \`${ruleId.slice(0, 8)}…\` and any roles it had granted.`
-            : 'No rule with that id in this server. Run `/mergeid rules list` for ids.');
+            : 'No rule with that id in this server. Run `/mergeid rules list` for ids.',
+        );
         return;
       }
     }
@@ -336,7 +350,9 @@ export async function executeMergeid(
             roleId: role.id,
             actorDiscordId: actor,
           });
-          await interaction.editReply(`Unprotected ${mention(role.id)}. It can be added back to the allowlist with \`/mergeid roles add\`.`);
+          await interaction.editReply(
+            `Unprotected ${mention(role.id)}. It can be added back to the allowlist with \`/mergeid roles add\`.`,
+          );
         }
         return;
       }
@@ -348,9 +364,11 @@ export async function executeMergeid(
           channelId: channel?.id ?? null,
           actorDiscordId: actor,
         });
-        await interaction.editReply(channel
+        await interaction.editReply(
+          channel
             ? `Log channel set to <#${channel.id}>. Sync failures will post there.`
-            : 'Log channel cleared.');
+            : 'Log channel cleared.',
+        );
         return;
       }
     }
@@ -358,7 +376,9 @@ export async function executeMergeid(
     if (group === null && sub === 'sync-status') {
       const status = await rules.syncStatus({ guildId });
       if (status.rules.length === 0) {
-        await interaction.editReply('No verification rules yet — nothing to sync. Add one with `/mergeid rules add`.');
+        await interaction.editReply(
+          'No verification rules yet — nothing to sync. Add one with `/mergeid rules add`.',
+        );
         return;
       }
       const lines = status.rules.map((rule) => {
@@ -370,10 +390,12 @@ export async function executeMergeid(
         return `${shortId} · last run ${when} (${rule.lastStatus}) · ${rule.checked} checks, ${rule.errored} errored, +${rule.granted}/-${rule.revoked} roles over ${rule.runs24h} run(s)`;
       });
       const t = status.totals;
-      await interaction.editReply([
+      await interaction.editReply(
+        [
           `**Sync health (last 24h):** ${t.runs24h} run(s) — ✅ ${t.ok24h} ok, ⚠️ ${t.partial24h} partial, ❌ ${t.failed24h} failed`,
           ...lines,
-        ].join('\n'));
+        ].join('\n'),
+      );
       return;
     }
 
@@ -381,7 +403,9 @@ export async function executeMergeid(
       const count = interaction.options.getInteger('count') ?? 10;
       const events = await rules.listAuditEvents({ guildId, limit: count });
       if (events.length === 0) {
-        await interaction.editReply('No audit events in this server yet. Rule and settings changes appear here.');
+        await interaction.editReply(
+          'No audit events in this server yet. Rule and settings changes appear here.',
+        );
         return;
       }
       const lines = events.map((event) => {
@@ -389,11 +413,15 @@ export async function executeMergeid(
         const who = event.actorDiscordId ? `<@${event.actorDiscordId}>` : 'system';
         return `${when} · ${who} · \`${event.action}\`${event.subject ? ` · \`${event.subject.slice(0, 16)}\`` : ''}`;
       });
-      await interaction.editReply([`**Recent audit events (${events.length}):**`, ...lines].join('\n'));
+      await interaction.editReply(
+        [`**Recent audit events (${events.length}):**`, ...lines].join('\n'),
+      );
       return;
     }
 
-    await interaction.editReply('Usage: `/mergeid roles add|remove|list`, `/mergeid rules add|list|remove`, `/mergeid settings show|protect-role|unprotect-role|log-channel`, `/mergeid audit`.');
+    await interaction.editReply(
+      'Usage: `/mergeid roles add|remove|list`, `/mergeid rules add|list|remove`, `/mergeid settings show|protect-role|unprotect-role|log-channel`, `/mergeid audit`.',
+    );
   } catch (err) {
     if (err instanceof AppError && err.expose) {
       await interaction.editReply(err.message);

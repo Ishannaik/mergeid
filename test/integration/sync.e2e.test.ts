@@ -52,7 +52,7 @@ describeMaybe('M5 sync e2e — real BullMQ + live Postgres', () => {
       const { createVerificationEngine } = await import('../../src/verification/engine.js');
       const scheduler = await import('../../src/sync/scheduler.js');
       const { createSyncQueue } = scheduler;
-      const { createRuleSyncProcessor, startWorker } = await import('../../src/sync/worker.js');
+      const { startWorker } = await import('../../src/sync/worker.js');
       const { makeLogger } = await import('../discord/fixtures.js');
 
       const logger = makeLogger();
