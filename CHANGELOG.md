@@ -1,5 +1,11 @@
 # mergeid
 
+## 1.0.0
+
+### Major Changes
+
+- Mark the 1.0 release: security audit, OAuth e2e coverage, self-hosting guide, GHCR image publishing with latest tag, and README updated from pre-alpha to v1.0.
+
 ## 0.1.0
 
 ### Minor Changes

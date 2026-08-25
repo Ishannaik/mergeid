@@ -7,10 +7,11 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Ishannaik/mergeid/pulls)
 [![Issues](https://img.shields.io/github/issues/Ishannaik/mergeid)](https://github.com/Ishannaik/mergeid/issues)
 
-**⚠️ Status: pre-alpha.** Foundations (M1), account linking (M2), the verification
-engine (M3), admin configuration (M4), and periodic sync (M5) are implemented.
-Hardening toward v1.0 (M6) is in progress — see the
-[roadmap](https://github.com/Ishannaik/mergeid/milestones). No releases yet.
+**✅ Status: v1.0.** Foundations (M1), account linking (M2), the verification
+engine (M3), admin configuration (M4), periodic sync (M5), and hardening (M6 —
+security audit, OAuth e2e tests, self-hosting guide) are implemented.
+See the [roadmap](https://github.com/Ishannaik/mergeid/milestones). Grab the image at
+`ghcr.io/ishannaik/mergeid:1.0.0` or follow the [self-hosting guide](docs/self-hosting.md).
 
 ---
 
@@ -41,7 +42,7 @@ your GitHub organization:
 - **Self-hostable** — MIT licensed, Docker-ready, with PostgreSQL and Redis as the only external
   dependencies.
 
-### Planned features
+### Features
 
 - Discord ↔ GitHub account linking via GitHub OAuth
 - Organization membership verification
@@ -102,7 +103,7 @@ Details and alternatives considered: [`docs/tech-stack.md`](docs/tech-stack.md).
 ```
 mergeid/
 ├── docs/                  # Architecture, security model, roadmap, guides
-├── src/                   # Application source (scaffolded, implementation upcoming)
+├── src/                   # Application source
 │   ├── discord/           # Gateway client, slash commands, events
 │   ├── api/               # Fastify HTTP server (OAuth callback, health)
 │   ├── github/            # Octokit client, OAuth exchange, membership checks
@@ -112,9 +113,9 @@ mergeid/
 │   ├── crypto/            # Token encryption (AES-256-GCM)
 │   ├── config/            # Env loading + zod validation
 │   └── lib/               # Logger, errors, rate limiting
-├── prisma/                # Schema + migrations (lands in M1)
+├── prisma/                # Schema + migrations
 ├── test/                  # Vitest suites
-├── docker/                # Dockerfile + compose (lands in M1)
+├── docker/                # Dockerfile + compose files
 └── .github/               # CI workflows, issue/PR templates, Dependabot
 ```
 
@@ -153,9 +154,9 @@ Full breakdown: [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Contributing
 
-The project is in the design phase — the best ways to contribute right now are reviewing the
-design docs, poking holes in the threat model, and picking up issues from
-[M1](https://github.com/Ishannaik/mergeid/milestones). See
+The project is at v1.0 — the best ways to contribute are picking up issues from
+[M7 (multi-forge integrations)](https://github.com/Ishannaik/mergeid/milestones), reviewing the
+design docs, and poking holes in the threat model. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and workflow.
 
 ## Security
