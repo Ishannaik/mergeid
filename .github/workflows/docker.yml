@@ -29,7 +29,9 @@ jobs:
           images: ghcr.io/ishannaik/mergeid
           tags: |
             type=semver,pattern={{version}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            # Workflow only triggers on v* tag pushes, so every build is a new
+            # release — always refresh latest.
+            type=raw,value=latest
 
       - uses: docker/build-push-action@v7
         with:
