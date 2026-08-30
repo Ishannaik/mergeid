@@ -7,6 +7,7 @@
 1. Create a Discord application + bot; copy `DISCORD_TOKEN` and `DISCORD_CLIENT_ID`.
 2. Create a **GitHub OAuth App** (not a GitHub App) at <https://github.com/settings/developers>:
    - **Authorization callback URL** = `OAUTH_REDIRECT_URI` (e.g. `https://bot.example.com/oauth/callback`).
+   - The Fastify server exposes this endpoint at GET /oauth/callback (implemented in src/api/routes/oauth.ts).
    - Note `Client ID` / `Client secret`.
 3. The MergeID HTTP role must be reachable at `PUBLIC_BASE_URL` over **HTTPS** (GitHub rejects
    insecure callbacks for production apps).
