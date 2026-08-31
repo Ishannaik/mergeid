@@ -18,8 +18,8 @@ importers:
         specifier: ^7.9.1
         version: 7.9.1(prisma@7.9.1(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3))(typescript@6.0.3)
       bullmq:
-        specifier: ^6.0.9
-        version: 6.1.2(ioredis@6.0.0)(pg@8.22.0)
+        specifier: ^6.3.1
+        version: 6.3.1(ioredis@6.0.0)(pg@8.22.0)
       discord.js:
         specifier: ^14.27.0
         version: 14.27.0
@@ -1334,8 +1334,8 @@ packages:
     resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
     engines: {node: 20 || >=22}
 
-  bullmq@6.1.2:
-    resolution: {integrity: sha512-GSX8JfWN8CElAGDyt7Zmq59n1FfWZ0L7IjsThNUQq7X8mvVVDb9I5i2F+nFg4A00UbysJ5yejN0oWzmbUJPDFg==}
+  bullmq@6.3.1:
+    resolution: {integrity: sha512-dxFRQtN42H1SWpODKr1eHqFsgYPAWOKiZDihatP8Skdd/j8e0x77AP//TUqGMVuUmjHf/eNMa2e+g6bidc4oYg==}
     engines: {node: '>=14.17.0'}
     peerDependencies:
       bullmq-otel: '>=2.0.0'
@@ -3573,7 +3573,7 @@ snapshots:
     dependencies:
       balanced-match: 4.0.4
 
-  bullmq@6.1.2(ioredis@6.0.0)(pg@8.22.0):
+  bullmq@6.3.1(ioredis@6.0.0)(pg@8.22.0):
     dependencies:
       cron-parser: 5.10.0
       msgpackr: 2.0.5
