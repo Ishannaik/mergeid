@@ -27,7 +27,7 @@ jobs:
       # Note: the @changesets/cli dependency gets added when release tooling lands (milestone M6).
       # Until then this step is skipped so the pipeline stays green.
       # Git-tag based releases only — no npm publish.
-      - uses: changesets/action@v1
+      - uses: changesets/action@v2
         if: hashFiles('.changeset/config.json') != ''
         with:
           version: pnpm changeset version
