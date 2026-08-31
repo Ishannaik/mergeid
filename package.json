@@ -43,7 +43,7 @@
     "@types/pg": "^8.20.4",
     "eslint": "^10.9.0",
     "eslint-config-prettier": "^10.1.0",
-    "globals": "^17.9.0",
+    "globals": "^17.11.0",
     "prettier": "^3.6.0",
     "prisma": "^7.9.1",
     "tsx": "^4.23.12",
