@@ -46,6 +46,16 @@ function contextOf(interaction: ChatInputCommandInteraction): InteractionContext
 }
 
 /**
+ * Converts a wall-clock interval to a log-safe duration. Clock adjustments and
+ * malformed fixture data cannot turn an operational diagnostic into NaN,
+ * Infinity, or a misleading negative value.
+ */
+function durationMsSince(startedAt: number): number {
+  const durationMs = Date.now() - startedAt;
+  return Number.isFinite(durationMs) ? Math.max(0, Math.trunc(durationMs)) : 0;
+}
+
+/**
  * accepts for the interaction's current state: `reply` while it is still
  * unacknowledged, `editReply` to resolve an ephemeral defer, and `followUp`
  * after a handler has already replied.
@@ -94,6 +104,8 @@ export function createInteractionHandler(
   }
 
   return async function handleInteraction(interaction: Interaction): Promise<void> {
+    const dispatchDelayMs = durationMsSince(interaction.createdTimestamp);
+
     // Buttons, modals, autocomplete and friends are not this router's business;
     // ignoring them silently keeps the logs free of noise from every component
     // interaction the bot will eventually handle elsewhere.
@@ -112,13 +124,25 @@ export function createInteractionHandler(
       return;
     }
 
+    const acknowledgementStartedAt = Date.now();
     try {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    } catch (err) {
+      const acknowledgementDurationMs = durationMsSince(acknowledgementStartedAt);
+      log.error(
+        { ...context, dispatchDelayMs, acknowledgementDurationMs, err },
+        'interaction acknowledgement failed',
+      );
+      await sendSafeResponse(interaction, COMMAND_FAILURE_MESSAGE, context, log);
+      return;
+    }
+
+    try {
       await command.execute(interaction);
     } catch (err) {
       // The original error is attached verbatim so the serialiser keeps its
       // message, stack and cause chain.
-      log.error({ ...context, err }, 'command execution failed');
+      log.error({ ...context, dispatchDelayMs, err }, 'command execution failed');
       await sendSafeResponse(interaction, COMMAND_FAILURE_MESSAGE, context, log);
     }
   };

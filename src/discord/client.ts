@@ -5,6 +5,7 @@ import {
   type ClientOptions,
   type Interaction,
 } from 'discord.js';
+import { Agent } from 'undici';
 
 import { logger } from '../lib/logger.js';
 import type { RuntimeRole } from '../lib/runtime.js';
@@ -56,6 +57,17 @@ export interface StartBotOptions {
 const createClient = (options: ClientOptions): GatewayClient => new Client(options);
 
 /**
+ * Keep Discord REST connections alive well past the observed idle interval so
+ * a later interaction acknowledgement can reuse its established transport.
+ */
+const discordRestAgentOptions = {
+  keepAliveTimeout: 5 * 60_000,
+  keepAliveMaxTimeout: 15 * 60_000,
+  autoSelectFamily: true,
+  autoSelectFamilyAttemptTimeout: 250,
+} as const;
+
+/**
  * The gateway client of the most recently booted bot role, if any.
  *
  * Role services (linked-role grant, rule-role sync) run inside command
@@ -72,13 +84,14 @@ export function getGatewayClient(): Client | null {
 /**
  * Boots the Discord gateway client.
  *
+ * Installs a client-owned Discord REST dispatcher before login so connection
+ * reuse remains available when the gateway later delivers an interaction.
  * Connects with the `Guilds` intent only, routes application-command
- * interactions through the shared handler, and fails loudly if login is
- * rejected — destroying the half-built client before rethrowing so a failed
- * boot leaks no socket.
+ * interactions through the shared handler, and destroys the half-built
+ * client and its dispatcher if startup fails.
  *
- * Shutdown is idempotent: the client is destroyed at most once, whether that
- * happens through repeated `stop()` calls or after login-failure cleanup.
+ * Shutdown is idempotent: the client and dispatcher close at most once,
+ * whether that happens through repeated `stop()` calls or failed startup.
  */
 export async function startBot(options?: StartBotOptions): Promise<RuntimeRole> {
   const config = options?.config ?? readDiscordConfig();
@@ -90,35 +103,51 @@ export async function startBot(options?: StartBotOptions): Promise<RuntimeRole> 
     options?.commandList ?? (options?.commandDeps ? createRegistry(options.commandDeps) : commands);
   const log = options?.log ?? logger;
   const clientFactory = options?.clientFactory ?? createClient;
-
+  const dispatcher = new Agent(discordRestAgentOptions);
   const handleInteraction = createInteractionHandler(commandList, log);
-  const client = clientFactory({ intents: [GatewayIntentBits.Guilds] });
-
-  // Both listeners must be attached before login so no early gateway event is
-  // dropped between the handshake and handler registration.
-  client.once(Events.ClientReady, () => {
-    log.info({ event: 'discord.gateway.ready' }, 'Discord gateway connected');
-  });
-  client.on(Events.InteractionCreate, handleInteraction);
-  client.on(Events.Error, (err) => {
-    log.error({ err }, 'Discord gateway error');
-  });
-
+  let client: GatewayClient | undefined;
   let cleanupPromise: Promise<void> | undefined;
+
+  const logCleanupFailure = (err: unknown, message: string): void => {
+    try {
+      log.error({ err }, message);
+    } catch {
+      // RuntimeRole.stop() is a no-throw boundary, including logger failures.
+    }
+  };
+
   const cleanup = (): Promise<void> => {
-    cleanupPromise ??= Promise.resolve()
-      .then(() => client.destroy())
-      .catch((err: unknown) => {
-        try {
-          log.error({ err }, 'Failed to destroy Discord gateway client');
-        } catch {
-          // RuntimeRole.stop() is a no-throw boundary, including logger failures.
-        }
-      });
+    cleanupPromise ??= Promise.all([
+      Promise.resolve()
+        .then(() => client?.destroy())
+        .catch((err: unknown) => {
+          logCleanupFailure(err, 'Failed to destroy Discord gateway client');
+        }),
+      Promise.resolve()
+        .then(() => dispatcher.close())
+        .catch((err: unknown) => {
+          logCleanupFailure(err, 'Failed to close Discord REST dispatcher');
+        }),
+    ]).then(() => undefined);
     return cleanupPromise;
   };
 
   try {
+    client = clientFactory({
+      intents: [GatewayIntentBits.Guilds],
+      rest: { agent: dispatcher },
+    });
+
+    // Both listeners must be attached before login so no early gateway event is
+    // dropped between the handshake and handler registration.
+    client.once(Events.ClientReady, () => {
+      log.info({ event: 'discord.gateway.ready' }, 'Discord gateway connected');
+    });
+    client.on(Events.InteractionCreate, handleInteraction);
+    client.on(Events.Error, (err) => {
+      log.error({ err }, 'Discord gateway error');
+    });
+
     await client.login(config.token);
     activeClient = client as Client;
   } catch (error) {
