@@ -1,5 +1,11 @@
 # mergeid
 
+## Unreleased
+
+### Patch Changes
+
+- Keep Discord's REST transport reusable across idle periods and log interaction dispatch/acknowledgement timings so first-command timeouts are both mitigated and diagnosable.
+
 ## 1.0.0
 
 ### Major Changes

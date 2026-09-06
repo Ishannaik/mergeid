@@ -27,6 +27,7 @@ type FauxInteraction = {
   replied: boolean;
   deferred: boolean;
   readonly user: { readonly id: string };
+  readonly createdTimestamp: number;
   readonly guildId: string | null;
   deferReply: Mock<Respond<DeferOptions>>;
   reply: Mock<Respond<EphemeralMessage>>;
@@ -51,6 +52,7 @@ function baseInteraction(overrides: Partial<FauxInteraction> = {}): FauxInteract
     replied: false,
     deferred: false,
     user: { id: SENDER_ID },
+    createdTimestamp: 1_000,
     guildId: GUILD_ID,
     deferReply: vi.fn<Respond<DeferOptions>>(async () => {
       interaction.deferred = true;
@@ -158,6 +160,55 @@ describe('createInteractionHandler', () => {
     );
     expect(firstCallOrder(interaction.deferReply)).toBeLessThan(firstCallOrder(execute));
     expect(log.error).not.toHaveBeenCalled();
+  });
+
+  it('separates dispatch delay from defer acknowledgement duration when deferral fails', async () => {
+    const acknowledgementError = new Error('Discord interaction acknowledgement expired');
+    const execute = vi.fn(async () => undefined);
+    const command: DiscordCommand = {
+      data: { name: COMMAND_NAME, description: 'verify a GitHub account', type: 1 },
+      execute,
+    };
+    const log = createLog();
+    vi.useFakeTimers({ now: 1_200 });
+    const interaction = baseInteraction({
+      deferReply: vi.fn<Respond<DeferOptions>>(
+        () =>
+          new Promise<unknown>((_resolve, reject) => {
+            setTimeout(() => {
+              reject(acknowledgementError);
+            }, 75);
+          }),
+      ),
+    });
+
+    try {
+      const handle = createInteractionHandler([command], log);
+      const handling = handle(interaction as unknown as ChatInputCommandInteraction);
+      await vi.advanceTimersByTimeAsync(75);
+      await handling;
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledExactlyOnceWith({
+      content: 'Something went wrong while running this command.',
+      flags: EPHEMERAL,
+    });
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.followUp).not.toHaveBeenCalled();
+    expect(log.error).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        commandName: COMMAND_NAME,
+        userId: SENDER_ID,
+        guildId: GUILD_ID,
+        dispatchDelayMs: 200,
+        acknowledgementDurationMs: 75,
+        err: acknowledgementError,
+      }),
+      'interaction acknowledgement failed',
+    );
   });
 
   it('replies ephemerally and warns for an unknown command without deferring', async () => {
