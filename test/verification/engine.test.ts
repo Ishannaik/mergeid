@@ -223,6 +223,73 @@ describe('verification engine — role reconciliation', () => {
     });
   });
 
+  it('keeps a shared role when another rule still passes', async () => {
+    octokitMock.orgs.getMembershipForAuthenticatedUser
+      .mockResolvedValueOnce({ data: { state: 'active' } })
+      .mockResolvedValueOnce({ data: { state: 'pending' } });
+    const { engine, prisma, roles } = setup({
+      rules: [rule({ id: 'rule-pass' }), rule({ id: 'rule-fail' })],
+    });
+    prisma.roleGrant.findMany.mockResolvedValue([
+      { guildId: GUILD, discordUserId: USER, roleId: ROLE_A, ruleId: 'rule-pass' },
+      { guildId: GUILD, discordUserId: USER, roleId: ROLE_A, ruleId: 'rule-fail' },
+    ]);
+    roles.sync.mockResolvedValue({ kind: 'unchanged', ok: true });
+
+    const summary = await engine.verifyUser({ discordUserId: USER, guildId: GUILD });
+
+    expect(summary.revoked).toEqual([]);
+    expect(roles.sync).toHaveBeenCalledTimes(1);
+    expect(roles.sync).toHaveBeenCalledWith({ guildId: GUILD, userId: USER }, ROLE_A, true);
+    expect(prisma.roleGrant.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          guildId_discordUserId_roleId_ruleId: {
+            guildId: GUILD,
+            discordUserId: USER,
+            roleId: ROLE_A,
+            ruleId: 'rule-pass',
+          },
+        },
+      }),
+    );
+    expect(prisma.roleGrant.deleteMany).toHaveBeenCalledWith({
+      where: {
+        guildId: GUILD,
+        discordUserId: USER,
+        roleId: ROLE_A,
+        ruleId: 'rule-fail',
+      },
+    });
+  });
+
+  it('keeps a shared role when another granting rule temporarily errors', async () => {
+    octokitMock.orgs.getMembershipForAuthenticatedUser
+      .mockResolvedValueOnce({ data: { state: 'pending' } })
+      .mockRejectedValueOnce(new Error('network'));
+    const { engine, prisma, roles } = setup({
+      rules: [rule({ id: 'rule-fail' }), rule({ id: 'rule-error' })],
+    });
+    prisma.roleGrant.findMany.mockResolvedValue([
+      { guildId: GUILD, discordUserId: USER, roleId: ROLE_A, ruleId: 'rule-fail' },
+      { guildId: GUILD, discordUserId: USER, roleId: ROLE_A, ruleId: 'rule-error' },
+    ]);
+
+    const summary = await engine.verifyUser({ discordUserId: USER, guildId: GUILD });
+
+    expect(summary.kept).toEqual([ROLE_A]);
+    expect(summary.revoked).toEqual([]);
+    expect(roles.sync).not.toHaveBeenCalled();
+    expect(prisma.roleGrant.deleteMany).toHaveBeenCalledWith({
+      where: {
+        guildId: GUILD,
+        discordUserId: USER,
+        roleId: ROLE_A,
+        ruleId: 'rule-fail',
+      },
+    });
+  });
+
   it('does not touch a role the rule never granted', async () => {
     octokitMock.orgs.getMembershipForAuthenticatedUser.mockResolvedValue({
       data: { state: 'pending' },
