@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Routes, type RESTPostAPIApplicationCommandsJSONBody } from 'discord.js';
 import { readDiscordConfig } from '../src/discord/config.js';
-import { deployCommands } from '../src/discord/deploy-commands.js';
+import {
+  deployCommands,
+  parseScopeArgument,
+  resolveScope,
+} from '../src/discord/deploy-commands.js';
 import { commands } from '../src/discord/commands/index.js';
 import * as deployCommandModule from '../src/discord/deploy-commands.js';
 
@@ -258,7 +262,7 @@ describe('deployCommands', () => {
     expect(rest.put).not.toHaveBeenCalledWith(expect.stringContaining('guilds'), expect.anything());
   });
 
-  it('bulk PUTs exactly the registry bodies to the guild route and never the global route when a dev guild is set', async () => {
+  it('bulk PUTs the registry bodies to the guild route and empties the global route when a dev guild is set', async () => {
     const rest = createRest();
 
     await deployCommands({
@@ -271,17 +275,78 @@ describe('deployCommands', () => {
       rest,
     });
 
-    expect(rest.put).toHaveBeenCalledTimes(1);
-
-    const [route, options] = firstPutCall(rest.put.mock.calls);
-    expect(route).toBe(
+    // Discord lists global and guild commands together, so a stale global set
+    // would show up as duplicates next to the freshly deployed guild set.
+    expect(rest.put).toHaveBeenCalledTimes(2);
+    expect(rest.put).toHaveBeenNthCalledWith(
+      1,
       Routes.applicationGuildCommands(devConfig.applicationId, devConfig.devGuildId),
+      { body: commandBodies },
     );
-    expect(options).toEqual({ body: commandBodies });
-    expect(rest.put).not.toHaveBeenCalledWith(
+    expect(rest.put).toHaveBeenNthCalledWith(
+      2,
       Routes.applicationCommands(devConfig.applicationId),
-      expect.anything(),
+      {
+        body: [],
+      },
     );
+  });
+
+  it('deploys globally and empties the dev guild when --scope=global overrides a configured dev guild', async () => {
+    const rest = createRest();
+
+    await deployCommands({
+      config: {
+        token: devConfig.token,
+        applicationId: devConfig.applicationId,
+        devGuildId: devConfig.devGuildId,
+      },
+      commandList: commandDefinitions,
+      rest,
+      scope: 'global',
+    });
+
+    expect(rest.put).toHaveBeenCalledTimes(2);
+    expect(rest.put).toHaveBeenNthCalledWith(
+      1,
+      Routes.applicationCommands(devConfig.applicationId),
+      {
+        body: commandBodies,
+      },
+    );
+    expect(rest.put).toHaveBeenNthCalledWith(
+      2,
+      Routes.applicationGuildCommands(devConfig.applicationId, devConfig.devGuildId),
+      { body: [] },
+    );
+  });
+
+  it('rejects --scope=guild when no dev guild is configured instead of falling back to global', async () => {
+    const rest = createRest();
+
+    await expect(
+      deployCommands({
+        config: { token: validConfig.token, applicationId: validConfig.applicationId },
+        commandList: commandDefinitions,
+        rest,
+        scope: 'guild',
+      }),
+    ).rejects.toThrow('DISCORD_DEV_GUILD_ID');
+
+    expect(rest.put).not.toHaveBeenCalled();
+  });
+
+  it('passes the parsed --scope argument through to deployment', async () => {
+    const deploy = vi.fn().mockResolvedValue(undefined);
+    const readConfig = vi.fn(() => devConfig);
+
+    await deployCommandModule.runDeployCommands({ deploy, readConfig, argv: ['--scope=global'] });
+
+    expect(deploy).toHaveBeenCalledExactlyOnceWith({
+      config: devConfig,
+      commandList: commands,
+      scope: 'global',
+    });
   });
 
   it('PUTs the body exactly once (no retries or duplicate registrations)', async () => {
@@ -334,6 +399,7 @@ describe('deployCommands', () => {
     expect(log.mock.calls[0]![0]).toMatchObject({
       count: commandBodies.length,
       scope: 'guild',
+      cleared: 'global',
     });
     const logged = JSON.stringify(log.mock.calls);
     expect(logged).not.toContain('a-real-token');
@@ -355,5 +421,44 @@ describe('deployCommands', () => {
     const [route, options] = firstPutCall(rest.put.mock.calls);
     expect(route).toBe(Routes.applicationCommands(validConfig.applicationId));
     expect(options).toEqual({ body: [] });
+  });
+});
+
+describe('resolveScope', () => {
+  const base = { token: 'a-real-token', applicationId: 'application-id' } as const;
+
+  it.each([
+    ['global when no dev guild is configured', base, undefined, 'global'],
+    ['guild when a dev guild is configured', { ...base, devGuildId: 'g' }, undefined, 'guild'],
+    [
+      'the override when a dev guild is configured',
+      { ...base, devGuildId: 'g' },
+      'global',
+      'global',
+    ],
+  ] as const)('resolves to %s', (_label, config, override, expected) => {
+    expect(resolveScope(config, override)).toBe(expected);
+  });
+
+  it('rejects a guild override without a dev guild', () => {
+    expect(() => resolveScope(base, 'guild')).toThrow('DISCORD_DEV_GUILD_ID');
+  });
+});
+
+describe('parseScopeArgument', () => {
+  it('returns undefined when no --scope flag is present', () => {
+    expect(parseScopeArgument([])).toBeUndefined();
+    expect(parseScopeArgument(['--verbose'])).toBeUndefined();
+  });
+
+  it.each([
+    ['global', 'global'],
+    ['guild', 'guild'],
+  ] as const)('accepts --scope=%s', (value, expected) => {
+    expect(parseScopeArgument([`--scope=${value}`])).toBe(expected);
+  });
+
+  it('rejects an unknown scope value', () => {
+    expect(() => parseScopeArgument(['--scope=everywhere'])).toThrow('--scope=');
   });
 });

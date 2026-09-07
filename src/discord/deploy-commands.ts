@@ -4,6 +4,12 @@
  * Registers the command registry with Discord in exactly one scope: the dev
  * guild when `DISCORD_DEV_GUILD_ID` is configured — guild commands propagate
  * instantly, which is what you want while developing — otherwise globally.
+ * `--scope=global` or `--scope=guild` overrides that choice.
+ *
+ * Discord shows global and guild commands side by side, so a set left behind
+ * in the other scope surfaces as duplicate entries, or an outdated command
+ * that still answers. Whenever both scopes are addressable (a dev guild is
+ * configured) the scope not being deployed to is emptied in the same run.
  *
  * Every collaborator is injectable so the deployment contract is testable
  * without touching the network.
@@ -34,10 +40,15 @@ interface RestLike {
   ): Promise<unknown>;
 }
 
+/** Where a registration lands. */
+export type CommandScope = 'global' | 'guild';
+
 /** Deployment summary. Carries no credentials and no guild identifier. */
 interface DeploymentFields {
   readonly count: number;
-  readonly scope: 'global' | 'guild';
+  readonly scope: CommandScope;
+  /** The other scope emptied in this run, when both scopes were addressable. */
+  readonly cleared?: CommandScope;
 }
 
 type DeployLog = (fields: DeploymentFields, message?: string) => void;
@@ -47,12 +58,16 @@ interface DeployCommandsOptions {
   readonly commandList: readonly DeployableCommand[];
   readonly rest?: RestLike;
   readonly log?: DeployLog;
+  /** Overrides the scope implied by `config.devGuildId`. */
+  readonly scope?: CommandScope;
 }
 
 interface RunDeployCommandsOptions {
   readonly deploy?: (options: DeployCommandsOptions) => Promise<void>;
   readonly readConfig?: () => DiscordConfig;
   readonly commandList?: readonly DeployableCommand[];
+  /** Process arguments after the script path; defaults to `process.argv.slice(2)`. */
+  readonly argv?: readonly string[];
 }
 
 interface DeployEntrypointOptions {
@@ -66,36 +81,92 @@ interface DeployEntrypointOptions {
 
 const DEPLOYED_MESSAGE = 'Registered Discord application commands';
 
+const SCOPE_FLAG = '--scope=';
+
+/**
+ * Picks the registration scope: the explicit override when given, otherwise
+ * the dev guild when one is configured, otherwise global.
+ *
+ * @throws {Error} when `guild` is requested but no dev guild is configured —
+ *   there is no guild to register to, and silently falling back to global
+ *   would be the exact surprise the override exists to prevent.
+ */
+export function resolveScope(config: DiscordConfig, override?: CommandScope): CommandScope {
+  if (override === 'guild' && config.devGuildId === undefined) {
+    throw new Error('--scope=guild requires DISCORD_DEV_GUILD_ID to be set.');
+  }
+
+  return override ?? (config.devGuildId === undefined ? 'global' : 'guild');
+}
+
+/**
+ * Reads `--scope=global|guild` from the CLI arguments.
+ *
+ * @throws {Error} on any other `--scope` value, so a typo fails instead of
+ *   quietly deploying to the default scope.
+ */
+export function parseScopeArgument(argv: readonly string[]): CommandScope | undefined {
+  const flag = argv.find((argument) => argument.startsWith(SCOPE_FLAG));
+  if (flag === undefined) {
+    return undefined;
+  }
+
+  const value = flag.slice(SCOPE_FLAG.length);
+  if (value === 'global' || value === 'guild') {
+    return value;
+  }
+
+  throw new Error(`Unknown ${SCOPE_FLAG} value; expected "global" or "guild".`);
+}
+
 /**
  * Bulk-registers `commandList` with Discord.
  *
  * A single bulk PUT replaces the entire command set for the chosen scope. An
  * empty registry is a legitimate payload rather than a no-op: it clears every
  * command previously registered in that scope.
+ *
+ * When a dev guild is configured, the scope *not* deployed to is emptied with
+ * a second bulk PUT so the two registries cannot drift apart. Without a dev
+ * guild only the global scope is addressable, and nothing else is touched.
  */
 export async function deployCommands({
   config,
   commandList,
   rest,
   log,
+  scope: requestedScope,
 }: DeployCommandsOptions): Promise<void> {
   // `REST` already satisfies `RestLike` structurally, so the real client and an
   // injected double reach the same call site without a cast.
   const client: RestLike = rest ?? new REST({ version: '10' }).setToken(config.token);
 
   const { applicationId, devGuildId } = config;
+  const scope = resolveScope(config, requestedScope);
   const body = commandList.map((command) => command.data);
 
-  const route =
+  const globalRoute = Routes.applicationCommands(applicationId);
+  const guildRoute =
     devGuildId === undefined
-      ? Routes.applicationCommands(applicationId)
+      ? undefined
       : Routes.applicationGuildCommands(applicationId, devGuildId);
 
-  await client.put(route, { body });
+  // `resolveScope` only yields `guild` when a dev guild exists, so the fallback
+  // to the global route here is unreachable; it keeps the type narrow.
+  const target = scope === 'guild' && guildRoute !== undefined ? guildRoute : globalRoute;
+  await client.put(target, { body });
+
+  let cleared: CommandScope | undefined;
+  if (guildRoute !== undefined) {
+    const other = scope === 'guild' ? globalRoute : guildRoute;
+    await client.put(other, { body: [] });
+    cleared = scope === 'guild' ? 'global' : 'guild';
+  }
 
   const fields: DeploymentFields = {
     count: body.length,
-    scope: devGuildId === undefined ? 'global' : 'guild',
+    scope,
+    ...(cleared === undefined ? {} : { cleared }),
   };
 
   // Defaults to the shared logger, invoked as a method so pino keeps its binding.
@@ -116,8 +187,10 @@ export async function runDeployCommands({
   deploy = deployCommands,
   readConfig = readDiscordConfig,
   commandList = commands,
+  argv = process.argv.slice(2),
 }: RunDeployCommandsOptions = {}): Promise<void> {
-  await deploy({ config: readConfig(), commandList });
+  const scope = parseScopeArgument(argv);
+  await deploy({ config: readConfig(), commandList, ...(scope === undefined ? {} : { scope }) });
 }
 
 function loadLocalEnvironment(): void {
