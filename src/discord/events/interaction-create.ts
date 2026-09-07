@@ -37,6 +37,12 @@ interface InteractionContext {
   readonly guildId: string | null;
 }
 
+/**
+ * Creates an interaction context from a chat-input interaction.
+ *
+ * @param interaction - The chat-input interaction to extract context from
+ * @returns The command name, user ID, and guild ID associated with the interaction
+ */
 function contextOf(interaction: ChatInputCommandInteraction): InteractionContext {
   return {
     commandName: interaction.commandName,
@@ -46,9 +52,10 @@ function contextOf(interaction: ChatInputCommandInteraction): InteractionContext
 }
 
 /**
- * Converts a wall-clock interval to a log-safe duration. Clock adjustments and
- * malformed fixture data cannot turn an operational diagnostic into NaN,
- * Infinity, or a misleading negative value.
+ * Calculates a safe elapsed duration from a start timestamp.
+ *
+ * @param startedAt - The starting wall-clock timestamp in milliseconds
+ * @returns The truncated elapsed duration in milliseconds, or `0` for invalid or negative durations
  */
 function durationMsSince(startedAt: number): number {
   const durationMs = Date.now() - startedAt;
@@ -85,11 +92,13 @@ async function sendSafeResponse(
 }
 
 /**
- * Builds the `InteractionCreate` listener for a command registry.
+ * Creates an interaction handler that dispatches registered chat-input commands.
  *
- * The name lookup is built once, here, rather than on every interaction: the
- * registry is fixed for the lifetime of the process, so rebuilding it per event
- * would burn an allocation and a full scan on the hot path for no gain.
+ * Unregistered commands receive a generic response, while command acknowledgement
+ * or execution failures are logged and receive a generic failure response.
+ *
+ * @param registry - Commands available for dispatch
+ * @returns An interaction handler for the provided command registry
  */
 export function createInteractionHandler(
   registry: readonly DiscordCommand[],
