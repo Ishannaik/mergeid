@@ -111,6 +111,18 @@ commands in only that guild, where changes propagate immediately. Registration i
 replacement for the selected scope; deploying an empty registry clears commands in that scope.
 Keep the bot token in the environment—never paste it into the command or print it in logs.
 
+Discord shows global and guild commands side by side, so when a dev guild is configured the
+scope you are **not** deploying to is emptied in the same run. Otherwise an older global set keeps
+answering next to the guild set (duplicate `/link` entries, or a `/verify` that only exists in one
+scope). Override the scope without editing the environment:
+
+```sh
+pnpm run deploy-commands --scope=global   # register globally, empty the dev guild's set
+pnpm run deploy-commands --scope=guild    # register to the dev guild, empty the global set
+```
+
+`--scope=guild` fails when `DISCORD_DEV_GUILD_ID` is unset rather than falling back to global.
+
 ## 3. GitHub OAuth App setup
 
 1. Profile → Settings → Developer settings → **OAuth Apps** → **New OAuth App**.
