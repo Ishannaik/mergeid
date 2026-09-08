@@ -12,6 +12,7 @@ import type { OAuthStateStore } from '../oauth/index.js';
 import type { LinkService } from '../services/index.js';
 import type { VerificationEngine } from '../verification/engine.js';
 import type { LinkedRoleService } from '../discord/roles.js';
+import type { AccountStateNotifier } from '../discord/notifications.js';
 
 /**
  * Boots the API role: binds PORT and serves health + OAuth callback routes.
@@ -25,9 +26,10 @@ export async function startApi(options: {
   oauthState: OAuthStateStore;
   links: LinkService;
   linkedRoles: LinkedRoleService;
+  notifications: AccountStateNotifier;
   engine: VerificationEngine | null;
 }): Promise<RuntimeRole> {
-  const { config, logger, oauthState, links, linkedRoles, engine } = options;
+  const { config, logger, oauthState, links, linkedRoles, notifications, engine } = options;
   const app = Fastify({
     logger: {
       level: config.LOG_LEVEL,
@@ -39,7 +41,15 @@ export async function startApi(options: {
   });
 
   app.get('/healthz', () => Promise.resolve({ ok: true }));
-  registerOAuthRoutes(app, { config, logger, oauthState, links, linkedRoles, engine });
+  registerOAuthRoutes(app, {
+    config,
+    logger,
+    oauthState,
+    links,
+    linkedRoles,
+    notifications,
+    engine,
+  });
 
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
   logger.info({ port: config.PORT }, 'api listening');

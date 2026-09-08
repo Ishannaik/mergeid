@@ -15,6 +15,7 @@ import { createLinkService, createRulesService } from './services/index.js';
 import { createLinkedRoleService } from './discord/roles.js';
 import { createRuleRoleService } from './discord/rule-roles.js';
 import { getGatewayClient } from './discord/client.js';
+import { createAccountStateNotifier } from './discord/notifications.js';
 import { createVerificationEngine } from './verification/engine.js';
 import type { RuntimeRole } from './config/index.js';
 
@@ -56,9 +57,21 @@ async function main(): Promise<void> {
     logger,
     getClient: () => getGatewayClient(),
   });
+  const notifications = createAccountStateNotifier({
+    logger,
+    getClient: () => getGatewayClient(),
+  });
   const engine =
     prisma && rules && config && logger
-      ? createVerificationEngine({ prisma, config, logger, rules, roles: ruleRoles, tokenCrypto })
+      ? createVerificationEngine({
+          prisma,
+          config,
+          logger,
+          rules,
+          roles: ruleRoles,
+          tokenCrypto,
+          notifications,
+        })
       : null;
 
   if (config.MERGEID_LINKED_ROLE_ID && !roles.has('bot')) {
@@ -84,6 +97,7 @@ async function main(): Promise<void> {
       links,
       linkedRoles,
       engine,
+      notifications,
     });
     shutdownHandlers.push(async () => {
       await api.stop();
@@ -104,6 +118,7 @@ async function main(): Promise<void> {
         linkedRoles,
         rules,
         engine,
+        notifications,
       },
     });
     shutdownHandlers.push(async () => {

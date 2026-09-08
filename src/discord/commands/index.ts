@@ -15,6 +15,7 @@ import type { Logger } from '../../lib/logger.js';
 import type { OAuthStateStore } from '../../oauth/index.js';
 import type { LinkService, RulesService } from '../../services/index.js';
 import type { VerificationEngine } from '../../verification/engine.js';
+import type { AccountStateNotifier } from '../notifications.js';
 
 /**
  * A single slash command: the raw REST body Discord registers, plus the
@@ -44,6 +45,7 @@ export interface CommandDeps {
   readonly oauthState: OAuthStateStore;
   readonly links: LinkService;
   readonly linkedRoles: LinkedRoleService;
+  readonly notifications: AccountStateNotifier;
   readonly rules: RulesService;
   readonly engine: VerificationEngine;
 }
@@ -78,6 +80,7 @@ export function createRegistry(deps: CommandDeps): readonly DiscordCommand[] {
         logger: deps.logger,
         links: deps.links,
         linkedRoles: deps.linkedRoles,
+        notifications: deps.notifications,
       }),
     ),
     command(statusCommandData.toJSON(), (interaction) =>

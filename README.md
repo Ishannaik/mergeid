@@ -49,6 +49,7 @@ your GitHub organization:
 - Repository collaborator verification (public and private repos)
 - GitHub team membership verification
 - Automatic Discord role assignment and removal
+- Best-effort DM notifications when links or verified role assignments change
 - Periodic re-verification, configurable per rule
 - Slash-command UX: `/link`, `/unlink`, `/status`, `/verify`
 - Per-server admin configuration with audit logging

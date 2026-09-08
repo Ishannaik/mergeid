@@ -4,6 +4,7 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { describeRoleOutcome, type LinkedRoleService } from '../roles.js';
 import type { Logger } from '../../lib/logger.js';
 import type { LinkService } from '../../services/index.js';
+import type { AccountStateNotifier } from '../notifications.js';
 
 export const unlinkCommandData = new SlashCommandBuilder()
   .setName('unlink')
@@ -11,12 +12,23 @@ export const unlinkCommandData = new SlashCommandBuilder()
 
 export async function executeUnlink(
   interaction: ChatInputCommandInteraction,
-  deps: { logger: Logger; links: LinkService; linkedRoles: LinkedRoleService },
+  deps: {
+    logger: Logger;
+    links: LinkService;
+    linkedRoles: LinkedRoleService;
+    notifications: AccountStateNotifier;
+  },
 ): Promise<void> {
   const result = await deps.links.unlink(interaction.user.id);
   if (!result.unlinked) {
     await interaction.editReply('No GitHub account is linked to your Discord user.');
     return;
+  }
+
+  try {
+    await deps.notifications.notify(interaction.user.id, { kind: 'unlinked' });
+  } catch (err) {
+    deps.logger.error({ err }, 'account unlink notification failed after successful unlink');
   }
 
   // The link is already gone at this point. A role failure is reported, never
