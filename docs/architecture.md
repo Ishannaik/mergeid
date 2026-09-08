@@ -125,21 +125,30 @@ docs/                      # This documentation
 6. Guards: GitHub account not already linked to a _different_ Discord account; Discord account
    not already linked.
 7. Services encrypt the token (AES-256-GCM, key-versioned) and persist the link + audit event.
-8. Member's browser shows a static "you can close this tab" page; the bot DMs a confirmation and
-   triggers an initial verification pass for every guild the member shares with the bot.
+8. Member's browser shows a static "you can close this tab" page; the bot sends a best-effort DM
+   confirmation and triggers an initial verification pass for every guild the member shares with
+   the bot.
 
 ### 7.2 On-demand verification (`/verify`)
 
 Member runs `/verify` → engine evaluates all rules of the current guild against the member's link
 → services reconcile roles (grant missing, revoke stale) → ephemeral result summary.
+When verification successfully grants or removes at least one role, the bot also sends a
+best-effort DM with the change counts. Unchanged checks and upstream errors do not notify.
 
 ### 7.3 Periodic sync
 
 Repeatable BullMQ jobs (one per rule, jittered) → worker loads active links in that guild →
 evaluates each link via the engine → diff against stored membership results → apply only actual
-changes → record results + audit. Transient GitHub errors keep the last known state (fail-open
-with backoff); definitive "not a member" removes the role (fail-closed). See
+changes → record results + audit. Successful role changes trigger the same best-effort DM as
+on-demand verification. Transient GitHub errors keep the last known state (fail-open with backoff);
+definitive "not a member" removes the role (fail-closed). See
 [`security-model.md`](security-model.md) §role-flapping.
+
+### 7.4 Account unlinking
+
+`/unlink` revokes the GitHub token, deletes the local link state, and then attempts a DM
+confirmation. Discord delivery failures are logged but never roll back the completed unlink.
 
 ## 8. GitHub API surface
 

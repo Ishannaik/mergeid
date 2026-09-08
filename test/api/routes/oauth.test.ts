@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMemoryOAuthStateStore } from '../../../src/oauth/state.js';
 import { createLinkedRoleService } from '../../../src/discord/roles.js';
+import type { AccountStateNotifier } from '../../../src/discord/notifications.js';
 import { makeClient, makeGuild, makeLogger, makeRole } from '../../discord/fixtures.js';
 import type { Config } from '../../../src/config/index.js';
 import type { LinkService } from '../../../src/services/index.js';
@@ -43,6 +44,12 @@ function disabledRoles() {
   });
 }
 
+function notifications() {
+  return {
+    notify: vi.fn().mockResolvedValue(undefined),
+  } as unknown as AccountStateNotifier;
+}
+
 describe('GET /oauth/callback rate limiting', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -65,6 +72,7 @@ describe('GET /oauth/callback rate limiting', () => {
       oauthState,
       links,
       linkedRoles: disabledRoles(),
+      notifications: notifications(),
       engine: null,
     });
 
@@ -111,6 +119,7 @@ describe('GET /oauth/callback HTML escaping', () => {
       oauthState,
       links,
       linkedRoles: disabledRoles(),
+      notifications: notifications(),
       engine: null,
     });
 
@@ -156,6 +165,7 @@ describe('GET /oauth/callback HTML escaping', () => {
       oauthState,
       links,
       linkedRoles: disabledRoles(),
+      notifications: notifications(),
       engine: null,
     });
 
@@ -214,23 +224,37 @@ describe('GET /oauth/callback linked-role grant', () => {
       logger: makeLogger(),
       getClient: () => makeClient(options.bundle.guild, GUILD_ID),
     });
+    const accountNotifications = notifications();
 
-    registerOAuthRoutes(app, { config, logger, oauthState, links, linkedRoles, engine: null });
+    registerOAuthRoutes(app, {
+      config,
+      logger,
+      oauthState,
+      links,
+      linkedRoles,
+      notifications: accountNotifications,
+      engine: null,
+    });
     const res = await app.inject({
       method: 'GET',
       url: `/oauth/callback?code=abc&state=${encodeURIComponent(state)}`,
     });
     await app.close();
-    return { res, links };
+    return { res, links, notifications: accountNotifications };
   }
 
-  it('grants the role in the guild recorded at /link time', async () => {
+  it('grants the role and notifies the user after a successful link', async () => {
     const bundle = makeGuild({ guildId: GUILD_ID });
-    const { res } = await callback({ guildId: GUILD_ID, bundle });
+    const { res, links, notifications } = await callback({ guildId: GUILD_ID, bundle });
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Linked!');
     expect(bundle.add).toHaveBeenCalledTimes(1);
+    expect(notifications.notify).toHaveBeenCalledExactlyOnceWith('discord-1', {
+      kind: 'linked',
+      githubLogin: 'octocat',
+    });
+    expect(links.createLink).toHaveBeenCalledBefore(notifications.notify);
     expect(res.body).not.toContain('Heads up');
   });
 
