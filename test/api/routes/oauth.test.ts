@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import rateLimit from '@fastify/rate-limit';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMemoryOAuthStateStore } from '../../../src/oauth/state.js';
@@ -41,6 +42,55 @@ function disabledRoles() {
     getClient: () => null,
   });
 }
+
+describe('GET /oauth/callback rate limiting', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('throttles the eleventh callback from one client before the handler runs', async () => {
+    const app = Fastify({ logger: false });
+    const oauthState = createMemoryOAuthStateStore();
+    const routeLogger = { ...logger, info: vi.fn() } as Logger;
+    const links = { createLink: vi.fn() } as unknown as LinkService;
+
+    await app.register(rateLimit, { global: false });
+    registerOAuthRoutes(app, {
+      config,
+      logger: routeLogger,
+      oauthState,
+      links,
+      linkedRoles: disabledRoles(),
+      engine: null,
+    });
+
+    const callback = () =>
+      app.inject({
+        method: 'GET',
+        url: '/oauth/callback?error=access_denied',
+        remoteAddress: '203.0.113.1',
+      });
+
+    try {
+      for (let request = 0; request < 10; request += 1) {
+        expect((await callback()).statusCode).toBe(400);
+      }
+      expect(routeLogger.info).toHaveBeenCalledTimes(10);
+
+      const blocked = await callback();
+
+      expect(blocked.statusCode).toBe(429);
+      expect(blocked.headers).toHaveProperty('retry-after');
+      expect(routeLogger.info).toHaveBeenCalledTimes(10);
+    } finally {
+      await app.close();
+    }
+  });
+});
 
 describe('GET /oauth/callback HTML escaping', () => {
   beforeEach(() => {
