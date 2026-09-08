@@ -100,18 +100,28 @@ export function resolveScope(config: DiscordConfig, override?: CommandScope): Co
 }
 
 /**
- * Reads `--scope=global|guild` from the CLI arguments.
+ * Reads `--scope=global|guild` (or the two-token form `--scope global|guild`)
+ * from the CLI arguments.
  *
- * @throws {Error} on any other `--scope` value, so a typo fails instead of
- *   quietly deploying to the default scope.
+ * @throws {Error} on any other `--scope` value, and on a bare `--scope` with no
+ *   value, so a typo fails instead of quietly deploying to the default scope.
  */
 export function parseScopeArgument(argv: readonly string[]): CommandScope | undefined {
-  const flag = argv.find((argument) => argument.startsWith(SCOPE_FLAG));
-  if (flag === undefined) {
+  const bareIndex = argv.indexOf('--scope');
+  const joined = argv.find((argument) => argument.startsWith(SCOPE_FLAG));
+
+  let value: string | undefined;
+  if (bareIndex !== -1) {
+    value = argv[bareIndex + 1];
+    if (value === undefined || value.startsWith('--')) {
+      throw new Error(`Missing --scope value; use ${SCOPE_FLAG}global or ${SCOPE_FLAG}guild.`);
+    }
+  } else if (joined !== undefined) {
+    value = joined.slice(SCOPE_FLAG.length);
+  } else {
     return undefined;
   }
 
-  const value = flag.slice(SCOPE_FLAG.length);
   if (value === 'global' || value === 'guild') {
     return value;
   }

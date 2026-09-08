@@ -461,4 +461,21 @@ describe('parseScopeArgument', () => {
   it('rejects an unknown scope value', () => {
     expect(() => parseScopeArgument(['--scope=everywhere'])).toThrow('--scope=');
   });
+
+  it.each([
+    ['global', 'global'],
+    ['guild', 'guild'],
+  ] as const)('accepts the two-token form --scope %s', (value, expected) => {
+    expect(parseScopeArgument(['--scope', value])).toBe(expected);
+    expect(parseScopeArgument(['--verbose', '--scope', value])).toBe(expected);
+  });
+
+  it('rejects a bare --scope with no value instead of falling back to the default scope', () => {
+    expect(() => parseScopeArgument(['--scope'])).toThrow('Missing --scope value');
+    expect(() => parseScopeArgument(['--scope', '--verbose'])).toThrow('Missing --scope value');
+  });
+
+  it('rejects an unknown two-token scope value', () => {
+    expect(() => parseScopeArgument(['--scope', 'everywhere'])).toThrow('--scope=');
+  });
 });
