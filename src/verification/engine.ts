@@ -144,12 +144,7 @@ export function createVerificationEngine(deps: {
               detail: 'team slug missing on TEAM rule',
             };
           }
-          const result = await checkTeamMembership(
-            input.octokit,
-            input.org,
-            input.teamSlug,
-            input.username,
-          );
+          const result = await checkTeamMembership(input.octokit, input.org, input.teamSlug);
           return {
             ruleId: input.ruleId,
             roleId: '',

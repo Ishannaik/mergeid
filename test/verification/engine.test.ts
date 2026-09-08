@@ -19,9 +19,10 @@ const ROLE_B = '555555555555555555';
 // surface so the real membership logic runs against controllable doubles.
 const octokitMock = vi.hoisted(() => ({
   getAuthenticated: vi.fn(),
+  paginate: vi.fn(),
   orgs: { getMembershipForAuthenticatedUser: vi.fn() },
   repos: { get: vi.fn() },
-  teams: { getMembershipForUserInOrg: vi.fn() },
+  teams: { listForAuthenticatedUser: vi.fn() },
 }));
 
 vi.mock('@octokit/rest', () => ({
@@ -31,7 +32,8 @@ vi.mock('@octokit/rest', () => ({
       getMembershipForAuthenticatedUser: octokitMock.orgs.getMembershipForAuthenticatedUser,
     };
     repos = { get: octokitMock.repos.get };
-    teams = { getMembershipForUserInOrg: octokitMock.teams.getMembershipForUserInOrg };
+    paginate = octokitMock.paginate;
+    teams = { listForAuthenticatedUser: octokitMock.teams.listForAuthenticatedUser };
   },
 }));
 
@@ -119,9 +121,14 @@ beforeEach(() => {
   octokitMock.repos.get.mockReset().mockResolvedValue({
     data: { permissions: { push: true, pull: true } },
   });
-  octokitMock.teams.getMembershipForUserInOrg
-    .mockReset()
-    .mockResolvedValue({ data: { state: 'active' } });
+  octokitMock.teams.listForAuthenticatedUser.mockReset();
+
+  octokitMock.paginate.mockReset().mockResolvedValue([
+    {
+      slug: 'core',
+      organization: { login: 'acme' },
+    },
+  ]);
 });
 
 describe('verification engine — short-circuits', () => {
@@ -256,15 +263,18 @@ describe('verification engine — rule kinds', () => {
     expect(octokitMock.repos.get).toHaveBeenCalledWith({ owner: 'acme', repo: 'api' });
   });
 
-  it('checks team membership for TEAM rules with the resolved username', async () => {
-    const { engine } = setup({ rules: [rule({ kind: 'TEAM', org: 'acme', teamSlug: 'core' })] });
+  it('checks authenticated team membership for TEAM rules', async () => {
+    const { engine } = setup({
+      rules: [rule({ kind: 'TEAM', org: 'acme', teamSlug: 'core' })],
+    });
 
-    await engine.verifyUser({ discordUserId: USER, guildId: GUILD });
+    await engine.verifyUser({
+      discordUserId: USER,
+      guildId: GUILD,
+    });
 
-    expect(octokitMock.teams.getMembershipForUserInOrg).toHaveBeenCalledWith({
-      org: 'acme',
-      team_slug: 'core',
-      username: 'octocat',
+    expect(octokitMock.paginate).toHaveBeenCalledWith(octokitMock.teams.listForAuthenticatedUser, {
+      per_page: 100,
     });
   });
 });

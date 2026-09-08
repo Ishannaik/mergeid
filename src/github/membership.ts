@@ -75,29 +75,22 @@ export async function checkRepoPushAccess(
 /**
  * Team membership for the authenticated user.
  *
- * `GET /orgs/{org}/teams/{team_slug}/memberships/{username}` — the username is
- * resolved once per verification run and reused. State `active` counts;
- * `pending` invites do not.
+ * `GET /user/teams` - lists every team available to the authenticated user.
+ * Pagination is handled by Octokit, and both the organization login and team
+ * slug must match exactly.
  */
+
 export async function checkTeamMembership(
   octokit: MemberOctokit,
   org: string,
   teamSlug: string,
-  username: string,
 ): Promise<MembershipCheckResult> {
-  try {
-    const { data } = await octokit.teams.getMembershipForUserInOrg({
-      org,
-      team_slug: teamSlug,
-      username,
-    });
-    return { member: data.state === 'active' };
-  } catch (err) {
-    if (isNotFound(err)) {
-      return { member: false, detail: 'not a member of the team' };
-    }
-    throw err;
+  const teams = await octokit.paginate(octokit.teams.listForAuthenticatedUser, { per_page: 100 });
+  const member = teams.some((team) => team.organization.login === org && team.slug === teamSlug);
+  if (member) {
+    return { member: true };
   }
+  return { member: false, detail: 'not a member of the team' };
 }
 
 /** True for Octokit/axios 404 errors (the only error we treat as "no"). */
