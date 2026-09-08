@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 import 'dotenv/config';
 
 import { vi } from 'vitest';
+import type { AccountStateNotifier } from '../../src/discord/notifications.js';
 
 const octokitMock = vi.hoisted(() => ({
   getAuthenticated: vi.fn(),
@@ -35,6 +36,8 @@ const GUILD = '159000000000000000';
 const USER = '159000000000000001';
 const ROLE = '159000000000000002';
 const KEY = process.env.TOKEN_ENCRYPTION_KEY ?? '';
+
+const notifications: AccountStateNotifier = { notify: async () => {} };
 
 const describeMaybe = process.env.DATABASE_URL && process.env.REDIS_URL ? describe : describe.skip;
 
@@ -83,6 +86,7 @@ describeMaybe('M5 sync e2e — real BullMQ + live Postgres', () => {
         rules,
         roles: ruleRoles,
         tokenCrypto,
+        notifications,
       });
       const links = createLinkService({
         prisma,

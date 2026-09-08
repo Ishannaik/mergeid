@@ -61,6 +61,7 @@ sequenceDiagram
 | Identity binding   | Authorization keys off GitHub's **numeric user id**, never the login (logins can change; ids cannot).                                                                                                                                                                                       |
 | Duplicate guards   | GitHub account → one Discord account. Second attempt gets a clear error, not a silent overwrite.                                                                                                                                                                                            |
 | Post-link trigger  | Initial verification enqueued so roles appear within seconds of linking.                                                                                                                                                                                                                    |
+| DM confirmation    | After the link commits, the bot attempts to DM the linked GitHub login. Closed DMs or an unavailable gateway are logged and never turn a successful link into a callback failure.                                                                                                           |
 
 ## 3. Failure cases
 

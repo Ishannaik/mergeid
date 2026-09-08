@@ -29,6 +29,7 @@ import type { Logger } from '../lib/logger.js';
 import type { Config } from '../config/index.js';
 import type { RulesService } from '../services/index.js';
 import type { RuleRoleService } from '../discord/rule-roles.js';
+import type { AccountStateNotifier } from '../discord/notifications.js';
 
 export interface VerifySummary {
   guildId: string | null;
@@ -62,6 +63,7 @@ export function createVerificationEngine(deps: {
   rules: RulesService;
   roles: RuleRoleService;
   tokenCrypto: TokenCrypto;
+  notifications: AccountStateNotifier;
 }) {
   const { prisma, logger } = deps;
   const log = logger.child({ component: 'verification' });
@@ -363,6 +365,18 @@ export function createVerificationEngine(deps: {
         at: new Date(),
       },
     });
+    if (summary.granted.length > 0 || summary.revoked.length > 0) {
+      try {
+        await deps.notifications.notify(input.discordUserId, {
+          kind: 'updated',
+          guildId: input.guildId,
+          granted: summary.granted.length,
+          revoked: summary.revoked.length,
+        });
+      } catch {
+        // Notifications are best effort; the committed verification result remains authoritative.
+      }
+    }
 
     log.info(
       {

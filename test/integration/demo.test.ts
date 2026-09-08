@@ -16,6 +16,7 @@ import { createLinkService, createRulesService } from '../../src/services/index.
 import { createVerificationEngine } from '../../src/verification/engine.js';
 import { makeLogger } from '../discord/fixtures.js';
 import { createTokenCrypto } from '../../src/crypto/index.js';
+import type { AccountStateNotifier } from '../../src/discord/notifications.js';
 
 const DEMO_USER = '999999999999999999';
 const GUILD_ID = process.env.DISCORD_DEV_GUILD_ID ?? '1529918028236455967';
@@ -23,6 +24,8 @@ const CONTRIBUTOR_ROLE = '1530441368361767064';
 const MAINTAINER_ROLE = '1530441365912162388';
 
 const KEY = process.env.TOKEN_ENCRYPTION_KEY ?? '';
+
+const notifications: AccountStateNotifier = { notify: async () => {} };
 
 // This suite needs the live database — skip cleanly in CI where there is none.
 const describeMaybe = process.env.DATABASE_URL ? describe : describe.skip;
@@ -63,6 +66,7 @@ describeMaybe('MergeID M3 — live feature demo', () => {
       rules,
       roles: roleApplier,
       tokenCrypto,
+      notifications,
     } as never);
 
     const createdRuleIds: string[] = [];

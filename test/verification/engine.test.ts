@@ -4,6 +4,7 @@ import { createVerificationEngine } from '../../src/verification/engine.js';
 import { createTokenCrypto } from '../../src/crypto/index.js';
 import type { Config } from '../../src/config/index.js';
 import { makeLogger } from '../discord/fixtures.js';
+import type { AccountStateNotifier } from '../../src/discord/notifications.js';
 
 const KEY = '0'.repeat(64);
 
@@ -101,6 +102,9 @@ function setup(options: SetupOptions = {}) {
 
   const rulesSvc = { listRules: vi.fn().mockResolvedValue(options.rules ?? []) };
   const roles = { sync: vi.fn().mockResolvedValue({ kind: 'granted', ok: true }) };
+  const notifications = {
+    notify: vi.fn().mockResolvedValue(undefined),
+  } as unknown as AccountStateNotifier;
   const engine = createVerificationEngine({
     prisma,
     config,
@@ -108,9 +112,10 @@ function setup(options: SetupOptions = {}) {
     rules: rulesSvc,
     roles,
     tokenCrypto: makeCrypto(),
+    notifications,
   });
 
-  return { engine, prisma, rulesSvc, roles };
+  return { engine, prisma, rulesSvc, roles, notifications };
 }
 
 beforeEach(() => {
@@ -170,7 +175,7 @@ describe('verification engine — short-circuits', () => {
 
 describe('verification engine — role reconciliation', () => {
   it('grants the role when an ORG rule passes', async () => {
-    const { engine, prisma, roles } = setup({ rules: [rule()] });
+    const { engine, prisma, roles, notifications } = setup({ rules: [rule()] });
 
     const summary = await engine.verifyUser({ discordUserId: USER, guildId: GUILD });
 
@@ -181,6 +186,12 @@ describe('verification engine — role reconciliation', () => {
     expect(prisma.roleGrant.upsert).toHaveBeenCalled();
     expect(prisma.membershipResult.upsert).toHaveBeenCalled();
     expect(prisma.githubLink.update).toHaveBeenCalled();
+    expect(notifications.notify).toHaveBeenCalledExactlyOnceWith(USER, {
+      kind: 'updated',
+      guildId: GUILD,
+      granted: 1,
+      revoked: 0,
+    });
     expect(prisma.auditEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ action: 'verification.completed' }),
@@ -192,7 +203,7 @@ describe('verification engine — role reconciliation', () => {
     octokitMock.orgs.getMembershipForAuthenticatedUser.mockResolvedValue({
       data: { state: 'pending' },
     });
-    const { engine, prisma, roles } = setup({ rules: [rule()] });
+    const { engine, prisma, roles, notifications } = setup({ rules: [rule()] });
     prisma.roleGrant.findMany.mockResolvedValue([
       { guildId: GUILD, discordUserId: USER, roleId: ROLE_A, ruleId: 'rule-1' },
     ]);
@@ -204,19 +215,26 @@ describe('verification engine — role reconciliation', () => {
     expect(summary.revoked).toEqual([ROLE_A]);
     expect(roles.sync).toHaveBeenCalledWith({ guildId: GUILD, userId: USER }, ROLE_A, false);
     expect(prisma.roleGrant.deleteMany).toHaveBeenCalled();
+    expect(notifications.notify).toHaveBeenCalledExactlyOnceWith(USER, {
+      kind: 'updated',
+      guildId: GUILD,
+      granted: 0,
+      revoked: 1,
+    });
   });
 
   it('does not touch a role the rule never granted', async () => {
     octokitMock.orgs.getMembershipForAuthenticatedUser.mockResolvedValue({
       data: { state: 'pending' },
     });
-    const { engine, roles } = setup({ rules: [rule()] });
+    const { engine, roles, notifications } = setup({ rules: [rule()] });
 
     const summary = await engine.verifyUser({ discordUserId: USER, guildId: GUILD });
 
     expect(summary.failed).toBe(1);
     expect(summary.revoked).toEqual([]);
     expect(roles.sync).not.toHaveBeenCalled();
+    expect(notifications.notify).not.toHaveBeenCalled();
   });
 
   it('keeps last-known state when a membership check errors', async () => {

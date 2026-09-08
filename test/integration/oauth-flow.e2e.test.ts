@@ -21,6 +21,7 @@ import { buildAuthorizeUrl } from '../../src/github/oauth.js';
 import { createTokenCrypto } from '../../src/crypto/index.js';
 import { createVerificationEngine } from '../../src/verification/engine.js';
 import { createLinkedRoleService } from '../../src/discord/roles.js';
+import type { AccountStateNotifier } from '../../src/discord/notifications.js';
 import { makeClient, makeGuild, makeLogger, makeRole } from '../discord/fixtures.js';
 import type { Config } from '../../src/config/index.js';
 import type { PrismaClient } from '../../src/lib/prisma.js';
@@ -65,6 +66,8 @@ const config = {
   LOG_LEVEL: 'silent',
   NODE_ENV: 'test',
 } as unknown as Config;
+
+const notifications: AccountStateNotifier = { notify: async () => {} };
 
 /**
  * Minimal in-memory Prisma double for the tables the callback touches via
@@ -219,6 +222,7 @@ describe('E2E OAuth flow — /link to verified roles', () => {
       rules: makeRules(),
       roles: ruleRoles,
       tokenCrypto,
+      notifications,
     });
     /** Mirrors LinkService.createLink's write so the engine can read the link. */
     const seedLink = async (input: Record<string, unknown>) => {
@@ -292,6 +296,7 @@ describe('E2E OAuth flow — /link to verified roles', () => {
       links: links as never,
       linkedRoles,
       engine: options.engine,
+      notifications,
     });
 
     // Step 3: GitHub redirects back with the code.
@@ -363,6 +368,7 @@ describe('E2E OAuth flow — /link to verified roles', () => {
       links,
       linkedRoles,
       engine: null,
+      notifications,
     });
 
     const first = await app.inject({
@@ -397,6 +403,7 @@ describe('E2E OAuth flow — /link to verified roles', () => {
       links,
       linkedRoles,
       engine: null,
+      notifications,
     });
 
     const res = await app.inject({

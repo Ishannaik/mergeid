@@ -3,6 +3,7 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 
 import { executeUnlink } from '../../../src/discord/commands/unlink.js';
 import { createLinkedRoleService } from '../../../src/discord/roles.js';
+import type { AccountStateNotifier } from '../../../src/discord/notifications.js';
 import type { Config } from '../../../src/config/index.js';
 import type { LinkService } from '../../../src/services/index.js';
 import { makeGuild, makeLogger, makeRole } from '../fixtures.js';
@@ -16,6 +17,12 @@ function linkedRoles(roleId: string | undefined) {
     logger: makeLogger(),
     getClient: () => null,
   });
+}
+
+function notifications() {
+  return {
+    notify: vi.fn().mockResolvedValue(undefined),
+  } as unknown as AccountStateNotifier;
 }
 
 function interaction(guildId: string | null, member: unknown): ChatInputCommandInteraction {
@@ -43,10 +50,19 @@ describe('/unlink linked-role removal', () => {
       unlink: vi.fn().mockResolvedValue({ unlinked: true }),
     } as unknown as LinkService;
     const it = interaction(guild.id, member);
+    const accountNotifications = notifications();
 
-    await executeUnlink(it, { logger: makeLogger(), links, linkedRoles: linkedRoles(ROLE_ID) });
+    await executeUnlink(it, {
+      logger: makeLogger(),
+      links,
+      linkedRoles: linkedRoles(ROLE_ID),
+      notifications: accountNotifications,
+    });
 
     expect(remove).toHaveBeenCalledTimes(1);
+    expect(accountNotifications.notify).toHaveBeenCalledExactlyOnceWith(USER_ID, {
+      kind: 'unlinked',
+    });
     expect(replyContent(it)).toContain('Unlinked.');
     expect(replyContent(it)).not.toContain('Heads up');
   });
@@ -57,10 +73,17 @@ describe('/unlink linked-role removal', () => {
       unlink: vi.fn().mockResolvedValue({ unlinked: false }),
     } as unknown as LinkService;
     const it = interaction(guild.id, member);
+    const accountNotifications = notifications();
 
-    await executeUnlink(it, { logger: makeLogger(), links, linkedRoles: linkedRoles(ROLE_ID) });
+    await executeUnlink(it, {
+      logger: makeLogger(),
+      links,
+      linkedRoles: linkedRoles(ROLE_ID),
+      notifications: accountNotifications,
+    });
 
     expect(remove).not.toHaveBeenCalled();
+    expect(accountNotifications.notify).not.toHaveBeenCalled();
     expect(replyContent(it)).toContain('No GitHub account is linked');
   });
 
@@ -71,7 +94,12 @@ describe('/unlink linked-role removal', () => {
     } as unknown as LinkService;
     const it = interaction(guild.id, member);
 
-    await executeUnlink(it, { logger: makeLogger(), links, linkedRoles: linkedRoles(undefined) });
+    await executeUnlink(it, {
+      logger: makeLogger(),
+      links,
+      linkedRoles: linkedRoles(undefined),
+      notifications: notifications(),
+    });
 
     expect(remove).not.toHaveBeenCalled();
     expect(replyContent(it)).toBe(
@@ -92,6 +120,7 @@ describe('/unlink linked-role removal', () => {
       logger: makeLogger(),
       links: { unlink } as unknown as LinkService,
       linkedRoles: linkedRoles(ROLE_ID),
+      notifications: notifications(),
     });
 
     // The unlink stands; only the role change is reported as failed.
@@ -109,7 +138,12 @@ describe('/unlink linked-role removal', () => {
     } as unknown as LinkService;
     const it = interaction(null, null);
 
-    await executeUnlink(it, { logger: makeLogger(), links, linkedRoles: linkedRoles(ROLE_ID) });
+    await executeUnlink(it, {
+      logger: makeLogger(),
+      links,
+      linkedRoles: linkedRoles(ROLE_ID),
+      notifications: notifications(),
+    });
 
     const content = replyContent(it);
     expect(content).toContain('Unlinked.');

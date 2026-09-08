@@ -12,6 +12,7 @@ import { escapeHtml } from '../../lib/html.js';
 import type { Config } from '../../config/index.js';
 import type { Logger } from '../../lib/logger.js';
 import type { LinkService } from '../../services/index.js';
+import type { AccountStateNotifier } from '../../discord/notifications.js';
 import type { VerificationEngine } from '../../verification/engine.js';
 
 function htmlPage(title: string, body: string, statusHint?: string): string {
@@ -44,10 +45,11 @@ export function registerOAuthRoutes(
     oauthState: OAuthStateStore;
     links: LinkService;
     linkedRoles: LinkedRoleService;
+    notifications: AccountStateNotifier;
     engine: VerificationEngine | null;
   },
 ): void {
-  const { config, logger, oauthState, links, linkedRoles, engine } = deps;
+  const { config, logger, oauthState, links, linkedRoles, notifications, engine } = deps;
 
   app.get<{
     Querystring: { code?: string; state?: string; error?: string; error_description?: string };
@@ -124,6 +126,15 @@ export function registerOAuthRoutes(
           accessToken: token.accessToken,
           scopes: token.scopes.length > 0 ? token.scopes : config.GITHUB_BASE_SCOPES,
         });
+
+        try {
+          await notifications.notify(record.discordUserId, {
+            kind: 'linked',
+            githubLogin: profile.login,
+          });
+        } catch (err) {
+          logger.error({ err }, 'account link notification failed after successful link');
+        }
 
         // This is the only place a link actually succeeds — /link merely hands out
         // an authorize URL — so the linked role is applied here, in the guild
