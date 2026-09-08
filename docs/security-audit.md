@@ -28,7 +28,7 @@ the current pre-alpha scope.
 | 11  | Secrets in repo          | ✅     | `.gitignore` covers `.env`; gitleaks workflow present                                             | CI                                                          |
 | 12  | SQL injection            | ✅     | Prisma parameterized queries only; no `$queryRaw` anywhere in `src/`                              | grep audit (this walkthrough)                               |
 | 13  | Bot token theft          | ✅     | Env-only via zod config; no privileged intents (`GatewayIntentBits.Guilds` only)                  | `src/discord/client.ts` (intent surface reviewed in audit)  |
-| 14  | Callback endpoint abuse  | ✅     | Stateless handler; Redis TTL bounds state volume; proxy rate-limiting documented                  | oauth-flow e2e                                              |
+| 14  | Callback endpoint abuse  | ✅     | Redis-backed 10 requests/minute/client-IP limit on `/oauth/callback`                              | `test/api/routes/oauth.test.ts`                             |
 | 15  | Supply chain             | ✅     | `pnpm-lock.yaml` committed; Dependabot config active                                              | CI                                                          |
 | 16  | Zombie access            | ✅     | M5 worker re-verifies on each rule's cadence; revocation only of owned grants                     | `test/sync/worker.test.ts`; live e2e `sync.e2e.test.ts`     |
 

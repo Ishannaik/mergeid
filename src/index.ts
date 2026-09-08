@@ -86,7 +86,7 @@ async function main(): Promise<void> {
   const shutdownHandlers: Array<() => Promise<void>> = [];
 
   if (roles.has('api')) {
-    if (!oauthState || !links) {
+    if (!redis || !oauthState || !links) {
       throw new Error('api role requires database and redis');
     }
     const { startApi } = await import('./api/server.js');
@@ -98,6 +98,7 @@ async function main(): Promise<void> {
       linkedRoles,
       engine,
       notifications,
+      redis,
     });
     shutdownHandlers.push(async () => {
       await api.stop();
