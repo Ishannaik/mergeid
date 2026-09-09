@@ -37,12 +37,29 @@ interface InteractionContext {
   readonly guildId: string | null;
 }
 
+/**
+ * Creates an interaction context from a chat-input interaction.
+ *
+ * @param interaction - The chat-input interaction to extract context from
+ * @returns The command name, user ID, and guild ID associated with the interaction
+ */
 function contextOf(interaction: ChatInputCommandInteraction): InteractionContext {
   return {
     commandName: interaction.commandName,
     userId: interaction.user.id,
     guildId: interaction.guildId,
   };
+}
+
+/**
+ * Calculates a safe elapsed duration from a start timestamp.
+ *
+ * @param startedAt - The starting wall-clock timestamp in milliseconds
+ * @returns The truncated elapsed duration in milliseconds, or `0` for invalid or negative durations
+ */
+function durationMsSince(startedAt: number): number {
+  const durationMs = Date.now() - startedAt;
+  return Number.isFinite(durationMs) ? Math.max(0, Math.trunc(durationMs)) : 0;
 }
 
 /**
@@ -75,11 +92,13 @@ async function sendSafeResponse(
 }
 
 /**
- * Builds the `InteractionCreate` listener for a command registry.
+ * Creates an interaction handler that dispatches registered chat-input commands.
  *
- * The name lookup is built once, here, rather than on every interaction: the
- * registry is fixed for the lifetime of the process, so rebuilding it per event
- * would burn an allocation and a full scan on the hot path for no gain.
+ * Unregistered commands receive a generic response, while command acknowledgement
+ * or execution failures are logged and receive a generic failure response.
+ *
+ * @param registry - Commands available for dispatch
+ * @returns An interaction handler for the provided command registry
  */
 export function createInteractionHandler(
   registry: readonly DiscordCommand[],
@@ -94,6 +113,8 @@ export function createInteractionHandler(
   }
 
   return async function handleInteraction(interaction: Interaction): Promise<void> {
+    const dispatchDelayMs = durationMsSince(interaction.createdTimestamp);
+
     // Buttons, modals, autocomplete and friends are not this router's business;
     // ignoring them silently keeps the logs free of noise from every component
     // interaction the bot will eventually handle elsewhere.
@@ -112,13 +133,25 @@ export function createInteractionHandler(
       return;
     }
 
+    const acknowledgementStartedAt = Date.now();
     try {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    } catch (err) {
+      const acknowledgementDurationMs = durationMsSince(acknowledgementStartedAt);
+      log.error(
+        { ...context, dispatchDelayMs, acknowledgementDurationMs, err },
+        'interaction acknowledgement failed',
+      );
+      await sendSafeResponse(interaction, COMMAND_FAILURE_MESSAGE, context, log);
+      return;
+    }
+
+    try {
       await command.execute(interaction);
     } catch (err) {
       // The original error is attached verbatim so the serialiser keeps its
       // message, stack and cause chain.
-      log.error({ ...context, err }, 'command execution failed');
+      log.error({ ...context, dispatchDelayMs, err }, 'command execution failed');
       await sendSafeResponse(interaction, COMMAND_FAILURE_MESSAGE, context, log);
     }
   };
