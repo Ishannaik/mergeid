@@ -45,7 +45,7 @@
     "eslint-config-prettier": "^10.1.0",
     "globals": "^17.11.0",
     "prettier": "^3.6.0",
-    "prisma": "^7.9.1",
+    "prisma": "^7.10.0",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.35.0",
