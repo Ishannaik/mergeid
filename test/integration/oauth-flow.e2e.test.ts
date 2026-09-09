@@ -142,10 +142,12 @@ function makePrisma() {
           where,
           create,
         }: {
-          where: { guildId_discordUserId_roleId: { roleId: string } };
+          where: {
+            guildId_discordUserId_roleId_ruleId: { roleId: string; ruleId: string };
+          };
           create: Record<string, unknown>;
         }) => {
-          const key = `${where.guildId_discordUserId_roleId.roleId}`;
+          const key = `${where.guildId_discordUserId_roleId_ruleId.roleId}:${where.guildId_discordUserId_roleId_ruleId.ruleId}`;
           const row = { ...create };
           grants.set(key, row);
           return row;

@@ -250,96 +250,103 @@ export function createVerificationEngine(deps: {
     });
     const grantByRule = new Map(existingGrants.map((grant) => [grant.ruleId, grant.roleId]));
 
-    for (const item of evaluated) {
-      if (item.status === MembershipStatus.ERROR) continue;
+    const groupByRole = (items: typeof evaluated) => {
+      const grouped = new Map<string, typeof evaluated>();
+      for (const item of items) {
+        const group = grouped.get(item.roleId) ?? [];
+        group.push(item);
+        grouped.set(item.roleId, group);
+      }
+      return grouped;
+    };
+    const passingByRole = groupByRole(
+      evaluated.filter((item) => item.status === MembershipStatus.PASS),
+    );
+    const failedGrantsByRole = groupByRole(
+      evaluated.filter(
+        (item) =>
+          item.status === MembershipStatus.FAIL && grantByRule.get(item.ruleId) === item.roleId,
+      ),
+    );
+    const rolesProtectedByErrors = new Set(
+      evaluated
+        .filter(
+          (item) =>
+            item.status === MembershipStatus.ERROR && grantByRule.get(item.ruleId) === item.roleId,
+        )
+        .map((item) => item.roleId),
+    );
 
-      const shouldHave = item.status === MembershipStatus.PASS;
-      const ruleOwnsRole = grantByRule.get(item.ruleId) === item.roleId;
-
-      if (shouldHave) {
-        const outcome = await deps.roles.sync(
-          { guildId: input.guildId, userId: input.discordUserId },
-          item.roleId,
-          true,
-        );
-        if (outcome.kind === 'granted') {
-          summary.granted.push(item.roleId);
+    for (const [roleId, passingItems] of passingByRole) {
+      const outcome = await deps.roles.sync(
+        { guildId: input.guildId, userId: input.discordUserId },
+        roleId,
+        true,
+      );
+      if (outcome.kind === 'granted' || outcome.kind === 'unchanged') {
+        summary[outcome.kind === 'granted' ? 'granted' : 'kept'].push(roleId);
+        for (const item of passingItems) {
           await prisma.roleGrant.upsert({
             where: {
-              guildId_discordUserId_roleId: {
+              guildId_discordUserId_roleId_ruleId: {
                 guildId: input.guildId,
                 discordUserId: input.discordUserId,
-                roleId: item.roleId,
+                roleId,
+                ruleId: item.ruleId,
               },
             },
             create: {
               guildId: input.guildId,
               discordUserId: input.discordUserId,
-              roleId: item.roleId,
+              roleId,
               ruleId: item.ruleId,
               grantedAt: new Date(),
             },
-            update: { ruleId: item.ruleId },
-          });
-        } else if (outcome.kind === 'unchanged') {
-          summary.kept.push(item.roleId);
-          await prisma.roleGrant.upsert({
-            where: {
-              guildId_discordUserId_roleId: {
-                guildId: input.guildId,
-                discordUserId: input.discordUserId,
-                roleId: item.roleId,
-              },
-            },
-            create: {
-              guildId: input.guildId,
-              discordUserId: input.discordUserId,
-              roleId: item.roleId,
-              ruleId: item.ruleId,
-              grantedAt: new Date(),
-            },
-            update: { ruleId: item.ruleId },
-          });
-        } else {
-          summary.failures.push({
-            roleId: item.roleId,
-            kind: outcome.kind,
-            detail: outcome.detail,
+            update: {},
           });
         }
-      } else if (ruleOwnsRole) {
-        const outcome = await deps.roles.sync(
-          { guildId: input.guildId, userId: input.discordUserId },
-          item.roleId,
-          false,
-        );
-        if (outcome.kind === 'removed') {
-          summary.revoked.push(item.roleId);
+      } else {
+        summary.failures.push({ roleId, kind: outcome.kind, detail: outcome.detail });
+      }
+    }
+
+    for (const [roleId, failedItems] of failedGrantsByRole) {
+      const roleStillJustified = passingByRole.has(roleId) || rolesProtectedByErrors.has(roleId);
+
+      if (roleStillJustified) {
+        if (!passingByRole.has(roleId)) summary.kept.push(roleId);
+        for (const item of failedItems) {
           await prisma.roleGrant.deleteMany({
             where: {
               guildId: input.guildId,
               discordUserId: input.discordUserId,
-              roleId: item.roleId,
+              roleId,
               ruleId: item.ruleId,
             },
           });
-        } else if (outcome.kind === 'unchanged') {
-          summary.kept.push(item.roleId);
+        }
+        continue;
+      }
+
+      const outcome = await deps.roles.sync(
+        { guildId: input.guildId, userId: input.discordUserId },
+        roleId,
+        false,
+      );
+      if (outcome.kind === 'removed' || outcome.kind === 'unchanged') {
+        summary[outcome.kind === 'removed' ? 'revoked' : 'kept'].push(roleId);
+        for (const item of failedItems) {
           await prisma.roleGrant.deleteMany({
             where: {
               guildId: input.guildId,
               discordUserId: input.discordUserId,
-              roleId: item.roleId,
+              roleId,
               ruleId: item.ruleId,
             },
           });
-        } else {
-          summary.failures.push({
-            roleId: item.roleId,
-            kind: outcome.kind,
-            detail: outcome.detail,
-          });
         }
+      } else {
+        summary.failures.push({ roleId, kind: outcome.kind, detail: outcome.detail });
       }
     }
 

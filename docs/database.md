@@ -71,7 +71,7 @@ erDiagram
         string guild_id PK
         string discord_user_id PK
         string role_id PK
-        string rule_id FK
+        string rule_id PK,FK
         timestamptz granted_at
     }
     audit_events {
@@ -155,8 +155,11 @@ upserted on each check. Powers diff-based role reconciliation and the zero-call 
 
 ### `role_grants`
 
-Idempotency ledger of roles MergeID granted, and which rule justified them. On revoke, the row is
-deleted. MergeID never touches roles not present here (see security model §role safety).
+Idempotency ledger of roles MergeID granted, and which rules justify them. The composite primary
+key `(guild_id, discord_user_id, role_id, rule_id)` stores one provenance row per qualifying rule,
+so one rule failing does not erase another rule's justification for the same role. On revoke, the
+failed rule's row is deleted. MergeID never touches roles not present here (see security model
+§role safety).
 
 ### `audit_events`
 
