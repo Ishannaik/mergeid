@@ -69,7 +69,10 @@ flowchart LR
     B <--> S[Services layer]
     H[HTTP API - Fastify] <--> S
     V[Verification engine] <--> S
-    W[Sync worker - BullMQ] --> V
+    S --> SC[Sync scheduler]
+    SC --> Q[BullMQ queue]
+    Q --> W[Sync worker]
+    W --> V
   end
   S --> P[(PostgreSQL)]
   S --> R[(Redis)]
