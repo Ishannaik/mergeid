@@ -114,6 +114,7 @@ Link the related issue with `Closes #N` in the PR description.
 ## Issues, milestones, and labels
 
 - Search existing issues before opening a new one.
+- Join the Discord (https://discord.gg/KKvtRhQvRv) before picking an issue, and claim it there or comment on the issue.
 - Labels follow a `type:*` / `area:*` / `priority:*` scheme:
   - `type:*` — bug, feature, docs, and so on
   - `area:*` — the subsystem affected (bot commands, verification, role sync, ...)
