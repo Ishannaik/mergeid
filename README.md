@@ -160,6 +160,11 @@ The project is at v1.0 — the best ways to contribute are picking up issues fro
 design docs, and poking holes in the threat model. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and workflow.
 
+## Community
+
+Join the [Discord server](https://discord.gg/KKvtRhQvRv) to ask questions, share feedback, and meet other contributors.
+It is the best place to discuss feature ideas before opening an issue or PR.
+
 ## Security
 
 Please do **not** open public issues for vulnerabilities. See [SECURITY.md](SECURITY.md) for the
