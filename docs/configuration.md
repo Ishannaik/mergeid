@@ -5,23 +5,24 @@
 
 ## 1. Environment variables
 
-| Variable               | Required | Description                                                                                                                          |
-| ---------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `DISCORD_TOKEN`        | yes      | Bot token from the Discord developer portal.                                                                                         |
-| `DISCORD_CLIENT_ID`    | yes      | Application ID of the Discord application (used for slash-command registration and invite URL).                                      |
-| `DISCORD_DEV_GUILD_ID` | no       | When set, slash commands register to this guild only (instant updates during development).                                           |
-| `GITHUB_CLIENT_ID`     | yes      | GitHub OAuth App client ID.                                                                                                          |
-| `GITHUB_CLIENT_SECRET` | yes      | GitHub OAuth App client secret.                                                                                                      |
-| `GITHUB_BASE_SCOPES`   | no       | Comma-separated base scopes. Default `read:user,read:org`.                                                                           |
-| `OAUTH_REDIRECT_URI`   | yes      | OAuth callback URL; must exactly match the GitHub OAuth App's registered callback URL.                                               |
-| `PUBLIC_BASE_URL`      | yes      | Public HTTPS origin of the HTTP role (used to construct callback URLs).                                                              |
-| `PORT`                 | no       | HTTP server port. Default `3000`.                                                                                                    |
-| `DATABASE_URL`         | yes      | PostgreSQL connection string.                                                                                                        |
-| `REDIS_URL`            | no       | Redis connection string. Required for multi-process deployments; optional in single-process dev (in-memory fallback planned for M1). |
-| `TOKEN_ENCRYPTION_KEY` | yes      | 32-byte hex key for AES-256-GCM token encryption. Generate: `openssl rand -hex 32`.                                                  |
-| `NODE_ENV`             | no       | `development` / `production`. Default `development`.                                                                                 |
-| `LOG_LEVEL`            | no       | pino level. Default `info`.                                                                                                          |
-| `MERGEID_ROLES`        | no       | Comma-separated subset of `bot,api,worker`. Default: all three in one process.                                                       |
+| Variable                 | Required | Description                                                                                                                          |
+| ------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `DISCORD_TOKEN`          | yes      | Bot token from the Discord developer portal.                                                                                         |
+| `DISCORD_CLIENT_ID`      | yes      | Application ID of the Discord application (used for slash-command registration and invite URL).                                      |
+| `DISCORD_DEV_GUILD_ID`   | no       | When set, slash commands register to this guild only (instant updates during development).                                           |
+| `MERGEID_LINKED_ROLE_ID` | no       | Optional Discord role snowflake (17–20 digits) granted on link and removed on `/unlink`. Unset disables the feature.                 |
+| `GITHUB_CLIENT_ID`       | yes      | GitHub OAuth App client ID.                                                                                                          |
+| `GITHUB_CLIENT_SECRET`   | yes      | GitHub OAuth App client secret.                                                                                                      |
+| `GITHUB_BASE_SCOPES`     | no       | Comma-separated base scopes. Default `read:user,read:org`.                                                                           |
+| `OAUTH_REDIRECT_URI`     | yes      | OAuth callback URL; must exactly match the GitHub OAuth App's registered callback URL.                                               |
+| `PUBLIC_BASE_URL`        | yes      | Public HTTPS origin of the HTTP role (used to construct callback URLs).                                                              |
+| `PORT`                   | no       | HTTP server port. Default `3000`.                                                                                                    |
+| `DATABASE_URL`           | yes      | PostgreSQL connection string.                                                                                                        |
+| `REDIS_URL`              | no       | Redis connection string. Required for multi-process deployments; optional in single-process dev (in-memory fallback planned for M1). |
+| `TOKEN_ENCRYPTION_KEY`   | yes      | 32-byte hex key for AES-256-GCM token encryption. Generate: `openssl rand -hex 32`.                                                  |
+| `NODE_ENV`               | no       | `development` / `production`. Default `development`.                                                                                 |
+| `LOG_LEVEL`              | no       | pino level. Default `info`.                                                                                                          |
+| `MERGEID_ROLES`          | no       | Comma-separated subset of `bot,api,worker`. Default: all three in one process.                                                       |
 
 All variables are parsed and validated at boot with zod — the process refuses to start on missing
 or malformed configuration, with a precise error naming the offending variable. Note: Prisma 7
@@ -85,6 +86,15 @@ payloads, and on a host running other compose stacks an unauthenticated Redis is
 away from anything else on the box. The healthcheck authenticates with the same password, so a
 missing or wrong `REDIS_PASSWORD` fails the container's health gate rather than silently starting
 an open instance.
+
+### Linked role (`MERGEID_LINKED_ROLE_ID`)
+
+`MERGEID_LINKED_ROLE_ID` is an optional Discord role snowflake (17–20 decimal digits) representing the single "this user proved their GitHub account" role.
+
+- **When set**: MergeID grants this role to the Discord member upon completing GitHub OAuth linking, and revokes it when the member runs `/unlink`. Role application is advisory: if Discord rejects the role update (for example, missing `Manage Roles` permission or role hierarchy constraints), the link/unlink itself still succeeds and an explanatory note is returned to the user.
+- **When unset**: The linked-role feature is disabled entirely. As guaranteed by `src/discord/roles.ts` (`LinkedRoleService.enabled` is false): _"False when MERGEID_LINKED_ROLE_ID is unset; every call is then a no-op"_, executing zero Discord role calls.
+
+Note that `MERGEID_LINKED_ROLE_ID` configures a Discord role snowflake and is completely unrelated to `MERGEID_ROLES`, which selects runtime process roles (`bot`, `api`, `worker`). When running in a multi-process architecture, `MERGEID_LINKED_ROLE_ID` requires the `bot` and `api` roles to run together (or have access to the Discord client) so role changes can be applied.
 
 ## 2. Discord application setup
 
